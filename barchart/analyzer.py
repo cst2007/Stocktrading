@@ -1,4 +1,4 @@
-"""Core analytics engine for the Barnhart Options Analyzer."""
+"""Core analytics engine for the Barchart Options Analyzer."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ProcessingResult:
-    """Container for the metrics generated from a Barnhart CSV."""
+    """Container for the metrics generated from a Barchart CSV."""
 
     ticker: str
     expiry: str
@@ -37,8 +37,8 @@ class ProcessingResult:
     output_directory: Path
 
 
-class BarnhartOptionsAnalyzer:
-    """Analyze Barnhart-formatted options chains.
+class BarchartOptionsAnalyzer:
+    """Analyze Barchart-formatted options chains.
 
     Parameters
     ----------
@@ -67,9 +67,15 @@ class BarnhartOptionsAnalyzer:
         "ask",
     }
 
-    def __init__(self, contract_multiplier: float = 100.0, create_charts: bool = True) -> None:
+    def __init__(
+        self,
+        contract_multiplier: float = 100.0,
+        create_charts: bool = True,
+        spot_price: float | None = None,
+    ) -> None:
         self.contract_multiplier = contract_multiplier
         self.create_charts = create_charts
+        self.spot_price = spot_price
 
     # ------------------------------------------------------------------
     # Public API
@@ -174,40 +180,34 @@ class BarnhartOptionsAnalyzer:
         df = df.dropna(subset=["strike", "gamma", "vega", "delta", "open_interest"])
         df = df[df["open_interest"] > 0]
 
-        if "underlying_price" not in df.columns or df["underlying_price"].isna().all():
-            # Fallback to using the midpoint of strikes as a rough proxy
-            underlying_proxy = float(df["strike"].median())
-            logger.warning(
-                "underlying_price column missing; using strike median %.2f as proxy",
-                underlying_proxy,
-            )
-            df["underlying_price"] = underlying_proxy
-
         return df
 
     def _compute_metrics(self, df: pd.DataFrame) -> Dict[str, object]:
-        contract_multiplier = self.contract_multiplier
+        if self.spot_price is None:
+            raise ValueError("spot_price must be provided before computing metrics")
 
-        underlying_prices = df["underlying_price"].fillna(df["underlying_price"].median())
-        underlying_price = float(underlying_prices.median())
+        contract_multiplier = self.contract_multiplier
+        spot_price = float(self.spot_price)
 
         df = df.copy()
         df["vanna"] = (
-            df["vega"] * (df["delta"] - 0.5) * df["open_interest"] * contract_multiplier * underlying_price
-        )
-        df["gex"] = (
-            df["gamma"]
-            * df["open_interest"]
-            * contract_multiplier
-            * (underlying_price ** 2)
-            * 0.01
+            df["vega"] * (df["delta"] - 0.5) * df["open_interest"] * contract_multiplier * spot_price
         )
 
+        gex_factor = (contract_multiplier * (spot_price**2)) / 10000.0
+
+        df["gex"] = df["gamma"] * df["open_interest"] * gex_factor
+        df.loc[df["option_type"] == "put", "gex"] *= -1
+
         totals = df.groupby("option_type")[["gex", "vanna"]].sum()
-        call_gex = float(totals.loc["call", "gex"]) if "call" in totals.index else 0.0
-        put_gex = float(totals.loc["put", "gex"]) if "put" in totals.index else 0.0
         call_vanna = float(totals.loc["call", "vanna"]) if "call" in totals.index else 0.0
         put_vanna = float(totals.loc["put", "vanna"]) if "put" in totals.index else 0.0
+
+        calls = df[df["option_type"] == "call"]
+        puts = df[df["option_type"] == "put"]
+
+        call_gex = float((calls["gamma"] * calls["open_interest"] * gex_factor).sum()) if not calls.empty else 0.0
+        put_gex = float((puts["gamma"] * puts["open_interest"] * gex_factor).sum()) if not puts.empty else 0.0
 
         gex_by_strike = df.groupby("strike")["gex"].sum().sort_index()
         vanna_by_strike = df.groupby("strike")["vanna"].sum().sort_index()
