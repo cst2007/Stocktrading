@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# Python virtual environments
+.venv/
+
+# Bytecode & cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Output / build artifacts
+output/
+
+# Example data junk
+examples/.DS_Store
