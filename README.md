@@ -13,15 +13,73 @@ It ingests Barchart-format options chain CSV files, computes aggregate Vanna and
 - Export JSON summaries, per-strike CSV tables, and optional PNG curve charts for each input file.
 - Command line interface for ad-hoc runs or batch processing directories.
 
-## Getting Started
+## Local Setup
 
-Create and activate a Python 3.11+ virtual environment, then install dependencies:
+1. **Install prerequisites**
+   - Python 3.11 or newer (the project targets 3.11 specifically).
+   - `pip` for dependency management.
+   - (Optional) `virtualenv` or the built-in `venv` module for isolated environments.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+2. **Clone the repository and enter the directory**
+
+   ```bash
+   git clone https://github.com/<your-org>/Stocktrading.git
+   cd Stocktrading
+   ```
+
+3. **Create and activate a virtual environment**
+
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
+   ```
+
+4. **Install Python dependencies**
+
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+
+   The requirements file installs the CLI, analyzer core, and optional web UI dependencies.
+
+5. **(Optional) Upgrade matplotlib dependencies for improved chart rendering**
+
+   If you plan to generate PNG charts, ensure your environment has a functioning Matplotlib backend. On
+   headless Linux hosts you may also want to install system packages such as `libfreetype6` and `pkg-config`.
+
+## Local Testing
+
+After installation you can validate the setup with the included example dataset. The commands below will
+process the sample CSV files and write outputs to `./output/`.
+
+1. **Run the CLI against the provided examples**
+
+   ```bash
+   python -m barchart.cli \
+     --input ./examples \
+     --out ./output \
+     --spot-price 5200 \
+     --no-charts
+   ```
+
+   This will parse every CSV in `examples/`, compute aggregate exposure metrics, and emit JSON and CSV
+   summaries for each file. The `--no-charts` flag skips PNG generation to keep the smoke test fast.
+
+2. **Inspect the generated artifacts**
+
+   The CLI writes results into `./output/`. You should see per-expiry JSON summaries and per-strike CSV files,
+   e.g. `SPX_2025-11-03_summary.json` and `SPX_2025-11-03_per_strike.csv`.
+
+3. **(Optional) Launch the web UI for manual workflows**
+
+   ```bash
+   python -m barchart.webserver --input-dir ./examples --output-dir ./output
+   ```
+
+   Navigate to <http://127.0.0.1:8000> to stage pairs of CSVs, supply a spot price, and trigger analysis runs
+   from the browser. Processed files are automatically moved to an internal `processed/` directory to avoid
+   duplicate work.
 
 ## Usage
 
