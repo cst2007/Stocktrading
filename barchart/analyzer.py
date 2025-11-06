@@ -16,6 +16,8 @@ try:  # pragma: no cover - optional dependency guard
 except ImportError:  # pragma: no cover - handled at runtime
     plt = None
 
+from .database import AnalyticsDatabase
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,6 +37,16 @@ class ProcessingResult:
     vanna_by_strike: Dict[float, float]
     source_path: Path
     output_directory: Path
+    strike_type_metrics: List["StrikeTypeMetric"]
+
+
+@dataclass
+class StrikeTypeMetric:
+    strike: float
+    option_type: str
+    next_gex: float
+    vanna: float
+    iv: float | None
 
 
 class BarchartOptionsAnalyzer:
@@ -126,6 +138,7 @@ class BarchartOptionsAnalyzer:
             vanna_by_strike=metrics["vanna_by_strike"],
             source_path=path,
             output_directory=output_directory,
+            strike_type_metrics=metrics["strike_type_metrics"],
         )
 
         self._write_outputs(result)
@@ -168,6 +181,9 @@ class BarchartOptionsAnalyzer:
 
         if "mid" not in df.columns:
             df["mid"] = float("nan")
+
+        if "iv" not in df.columns:
+            df["iv"] = float("nan")
 
         missing_mid = df["mid"].isna()
         if missing_mid.any():
@@ -219,6 +235,29 @@ class BarchartOptionsAnalyzer:
         gex_by_strike = df.groupby("strike")["gex"].sum().sort_index()
         vanna_by_strike = df.groupby("strike")["vanna"].sum().sort_index()
 
+        grouped = (
+            df.groupby(["strike", "option_type"])
+            .agg(
+                next_gex=("gex", "sum"),
+                vanna=("vanna", "sum"),
+                iv=("iv", "mean"),
+            )
+            .reset_index()
+        )
+
+        strike_type_metrics: List[StrikeTypeMetric] = []
+        for _, row in grouped.iterrows():
+            iv_value = float(row["iv"]) if not pd.isna(row["iv"]) else None
+            strike_type_metrics.append(
+                StrikeTypeMetric(
+                    strike=float(row["strike"]),
+                    option_type=str(row["option_type"]),
+                    next_gex=float(row["next_gex"]),
+                    vanna=float(row["vanna"]),
+                    iv=iv_value,
+                )
+            )
+
         return {
             "total_gex": float(gex_by_strike.sum()),
             "total_vanna": float(vanna_by_strike.sum()),
@@ -228,6 +267,7 @@ class BarchartOptionsAnalyzer:
             "put_vanna": put_vanna,
             "gex_by_strike": gex_by_strike.to_dict(),
             "vanna_by_strike": vanna_by_strike.to_dict(),
+            "strike_type_metrics": strike_type_metrics,
         }
 
     def _write_outputs(self, result: ProcessingResult) -> None:
@@ -268,6 +308,8 @@ class BarchartOptionsAnalyzer:
         per_strike_df.to_csv(csv_path, index=False)
         logger.info("Wrote per-strike CSV to %s", csv_path)
 
+        self._persist_to_database(result)
+
         if self.create_charts and plt is not None:
             self._create_charts(result, output_directory / f"{safe_suffix}_charts.png")
         elif self.create_charts:
@@ -275,6 +317,19 @@ class BarchartOptionsAnalyzer:
                 "matplotlib is not available; skipping chart generation for %s",
                 result.source_path,
             )
+
+    def _persist_to_database(self, result: ProcessingResult) -> None:
+        if not result.strike_type_metrics:
+            logger.debug("No strike-level metrics available for database persistence")
+            return
+
+        database_path = result.output_directory / "option_metrics.sqlite"
+        try:
+            database = AnalyticsDatabase(database_path)
+            database.record_metrics(result.ticker, result.strike_type_metrics)
+            logger.info("Persisted strike metrics to %s", database_path)
+        except Exception:  # pragma: no cover - surfaced via CLI logging
+            logger.exception("Failed to persist metrics to database at %s", database_path)
 
     def _create_charts(self, result: ProcessingResult, chart_path: Path) -> None:
         if plt is None:  # pragma: no cover - guarded in caller
