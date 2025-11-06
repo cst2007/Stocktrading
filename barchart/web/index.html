@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Option File Processor</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="page-header">
+        <h1>Option File Processor</h1>
+        <p>
+          Discover pairs of Barchart side-by-side and volatility/greeks exports,
+          then combine and analyze them once you are ready. Enter the spot price
+          to use for calculations and click <strong>Process</strong> to generate
+          outputs. Processed files are moved into the <code>processed</code>
+          folder automatically.
+        </p>
+      </header>
+
+      <section id="messages" class="status" role="status" aria-live="polite"></section>
+
+      <section aria-labelledby="pairs-heading">
+        <h2 id="pairs-heading" class="sr-only">Available file pairs</h2>
+        <div id="pairs-container" class="pairs-grid" data-empty-message="No unprocessed file pairs were found."></div>
+      </section>
+    </main>
+
+    <template id="pair-card-template">
+      <article class="pair-card">
+        <h3 class="pair-title"></h3>
+        <dl class="pair-details">
+          <div>
+            <dt>Side-by-side file</dt>
+            <dd class="pair-side"></dd>
+          </div>
+          <div>
+            <dt>Greeks file</dt>
+            <dd class="pair-greeks"></dd>
+          </div>
+          <div>
+            <dt>Last updated</dt>
+            <dd class="pair-updated"></dd>
+          </div>
+        </dl>
+        <label class="spot-label">
+          <span>Spot price</span>
+          <input type="number" class="spot-input" step="0.01" min="0" placeholder="e.g. 150.25" />
+        </label>
+        <button type="button" class="process-button">Process</button>
+      </article>
+    </template>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

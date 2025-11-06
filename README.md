@@ -49,6 +49,20 @@ Key options:
 When a directory is supplied, every CSV within it is processed and individual summary artifacts are
 written for each file.
 
+## Web UI
+
+An interactive web interface is available for manually combining side-by-side and volatility/greeks
+CSV exports, then running the analyzer once you are ready. Start the lightweight HTTP server with:
+
+```bash
+python -m barchart.webserver --input-dir ./examples --output-dir ./output
+```
+
+Open <http://127.0.0.1:8000> in your browser. The page lists every unprocessed pair of CSV files
+and allows you to enter the spot price to use for calculations. After the pair is processed, the
+source files are moved into an automatically managed `processed/` folder to keep the staging
+directory tidy.
+
 ## Output Artifacts
 
 For an input file such as `$spx-options-exp-2025-11-03-weekly.csv`, the tool writes:
