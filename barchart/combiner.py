@@ -1,0 +1,229 @@
+"""Utilities for merging Barchart side-by-side and greeks CSV exports."""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+from typing import Iterable
+
+import pandas as pd
+
+
+def _load_side_by_side(path: Path) -> pd.DataFrame:
+    df = pd.read_csv(path)
+
+    required_columns = {
+        "Type",
+        "Volume",
+        "Open Int",
+        "IV",
+        "Strike",
+        "Type.1",
+        "Volume.1",
+        "Open Int.1",
+        "IV.1",
+    }
+    missing = required_columns.difference(df.columns)
+    if missing:
+        raise ValueError(
+            "Side-by-side CSV is missing expected columns: " + ", ".join(sorted(missing))
+        )
+
+    def _clean_numeric(series: pd.Series, *, is_percent: bool = False) -> pd.Series:
+        cleaned = series.astype(str).str.replace(",", "", regex=False).str.strip()
+        if is_percent:
+            cleaned = cleaned.str.replace("%", "", regex=False)
+            return pd.to_numeric(cleaned, errors="coerce") / 100.0
+        return pd.to_numeric(cleaned, errors="coerce")
+
+    side = pd.DataFrame(
+        {
+            "strike": pd.to_numeric(df["Strike"], errors="coerce"),
+            "call_type": df["Type"].astype(str).str.title(),
+            "call_volume": _clean_numeric(df["Volume"]),
+            "call_open_interest": _clean_numeric(df["Open Int"]),
+            "call_iv": _clean_numeric(df["IV"], is_percent=True),
+            "put_type": df["Type.1"].astype(str).str.title(),
+            "put_volume": _clean_numeric(df["Volume.1"]),
+            "put_open_interest": _clean_numeric(df["Open Int.1"]),
+            "put_iv": _clean_numeric(df["IV.1"], is_percent=True),
+        }
+    )
+
+    for column in ("call_volume", "call_open_interest", "put_volume", "put_open_interest"):
+        side[column] = side[column].round().astype("Int64")
+
+    return side.dropna(subset=["strike"]).reset_index(drop=True)
+
+
+def _load_greeks(path: Path) -> pd.DataFrame:
+    df = pd.read_csv(path)
+    required_columns = {
+        "Strike",
+        "Delta",
+        "Gamma",
+        "Vega",
+        "Delta.1",
+        "Gamma.1",
+        "Vega.1",
+    }
+    missing = required_columns.difference(df.columns)
+    if missing:
+        raise ValueError(
+            "Greeks CSV is missing expected columns: " + ", ".join(sorted(missing))
+        )
+
+    greeks = pd.DataFrame(
+        {
+            "strike": pd.to_numeric(df["Strike"], errors="coerce"),
+            "call_delta": pd.to_numeric(df["Delta"], errors="coerce"),
+            "call_gamma": pd.to_numeric(df["Gamma"], errors="coerce"),
+            "call_vega": pd.to_numeric(df["Vega"], errors="coerce"),
+            "put_delta": pd.to_numeric(df["Delta.1"], errors="coerce"),
+            "put_gamma": pd.to_numeric(df["Gamma.1"], errors="coerce"),
+            "put_vega": pd.to_numeric(df["Vega.1"], errors="coerce"),
+        }
+    )
+
+    return greeks.dropna(subset=["strike"]).reset_index(drop=True)
+
+
+def combine_option_files(
+    side_by_side_path: Path,
+    greeks_path: Path,
+    *,
+    spot_price: float,
+    contract_multiplier: float = 100.0,
+) -> pd.DataFrame:
+    """Merge side-by-side and greeks datasets into a single per-strike table."""
+
+    side = _load_side_by_side(side_by_side_path)
+    greeks = _load_greeks(greeks_path)
+
+    merged = pd.merge(side, greeks, on="strike", how="inner", validate="one_to_one")
+
+    gex_factor = (contract_multiplier * (float(spot_price) ** 2)) / 10000.0
+
+    merged["call_gex"] = merged["call_gamma"] * merged["call_open_interest"] * gex_factor
+    merged["put_gex"] = -merged["put_gamma"] * merged["put_open_interest"] * gex_factor
+
+    merged["call_vanna"] = (1 - merged["call_delta"]) * merged["call_vega"] * 100
+    merged["put_vanna"] = merged["put_delta"] * merged["put_vega"] * 100
+
+    merged["net_gex"] = merged["call_gex"] + merged["put_gex"]
+
+    rounding_map = {
+        "call_iv": 4,
+        "call_delta": 4,
+        "call_gamma": 6,
+        "call_vega": 4,
+        "call_gex": 4,
+        "call_vanna": 6,
+        "net_gex": 4,
+        "put_gex": 4,
+        "put_vanna": 6,
+        "put_iv": 4,
+        "put_delta": 4,
+        "put_gamma": 6,
+        "put_vega": 4,
+    }
+    for column, decimals in rounding_map.items():
+        merged[column] = merged[column].round(decimals)
+
+    columns = [
+        "call_type",
+        "call_volume",
+        "call_open_interest",
+        "call_iv",
+        "call_delta",
+        "call_gamma",
+        "call_vega",
+        "call_gex",
+        "call_vanna",
+        "net_gex",
+        "strike",
+        "put_type",
+        "put_gex",
+        "put_vanna",
+        "put_volume",
+        "put_open_interest",
+        "put_iv",
+        "put_delta",
+        "put_gamma",
+        "put_vega",
+    ]
+
+    return merged[columns].sort_values("strike").reset_index(drop=True)
+
+
+def _write_output(df: pd.DataFrame, output_path: Path) -> None:
+    header = [
+        "Type",
+        "Call Volume",
+        "Call Open Int",
+        "Call IV",
+        "Call Delta",
+        "Call Gamma",
+        "Call Vega",
+        "Call GEX",
+        "Call Vanna",
+        "Net GEX",
+        "Strike",
+        "Type",
+        "Put GEX",
+        "Put Vanna",
+        "Put Volume",
+        "Put Open Int",
+        "Put IV",
+        "Put Delta",
+        "Put Gamma",
+        "Put Vega",
+    ]
+    df.to_csv(output_path, index=False, header=header)
+
+
+def run_cli(args: Iterable[str] | None = None) -> Path:
+    parser = argparse.ArgumentParser(
+        description="Combine Barchart side-by-side and greeks CSV exports into a unified table.",
+    )
+    parser.add_argument("--side-by-side", required=True, help="Path to the side-by-side CSV file.")
+    parser.add_argument("--greeks", required=True, help="Path to the volatility/greeks CSV file.")
+    parser.add_argument(
+        "--spot-price",
+        required=True,
+        type=float,
+        help="Underlying spot price used for exposure calculations.",
+    )
+    parser.add_argument(
+        "--output",
+        required=True,
+        help="Destination CSV file for the combined output.",
+    )
+    parser.add_argument(
+        "--contract-multiplier",
+        type=float,
+        default=100.0,
+        help="Contract size used in exposure calculations (default: 100).",
+    )
+
+    parsed = parser.parse_args(args=args)
+
+    combined = combine_option_files(
+        Path(parsed.side_by_side),
+        Path(parsed.greeks),
+        spot_price=parsed.spot_price,
+        contract_multiplier=parsed.contract_multiplier,
+    )
+
+    output_path = Path(parsed.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_output(combined, output_path)
+    return output_path
+
+
+def main() -> None:  # pragma: no cover - CLI entry point
+    run_cli()
+
+
+if __name__ == "__main__":  # pragma: no cover - CLI entry point
+    main()
