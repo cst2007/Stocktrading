@@ -9,6 +9,33 @@ from typing import Iterable
 import pandas as pd
 
 
+# Column headers used when writing the combined CSV output. The order matches the
+# column order returned by :func:`combine_option_files` so downstream tooling can
+# rely on the human friendly labels produced by the CLI.
+COMBINED_CSV_HEADER = [
+    "Type",
+    "Call Volume",
+    "Call Open Int",
+    "Call IV",
+    "Call Delta",
+    "Call Gamma",
+    "Call Vega",
+    "Call GEX",
+    "Call Vanna",
+    "Net GEX",
+    "Strike",
+    "Type",
+    "Put GEX",
+    "Put Vanna",
+    "Put Volume",
+    "Put Open Int",
+    "Put IV",
+    "Put Delta",
+    "Put Gamma",
+    "Put Vega",
+]
+
+
 def _load_side_by_side(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
 
@@ -157,29 +184,7 @@ def combine_option_files(
 
 
 def _write_output(df: pd.DataFrame, output_path: Path) -> None:
-    header = [
-        "Type",
-        "Call Volume",
-        "Call Open Int",
-        "Call IV",
-        "Call Delta",
-        "Call Gamma",
-        "Call Vega",
-        "Call GEX",
-        "Call Vanna",
-        "Net GEX",
-        "Strike",
-        "Type",
-        "Put GEX",
-        "Put Vanna",
-        "Put Volume",
-        "Put Open Int",
-        "Put IV",
-        "Put Delta",
-        "Put Gamma",
-        "Put Vega",
-    ]
-    df.to_csv(output_path, index=False, header=header)
+    df.to_csv(output_path, index=False, header=COMBINED_CSV_HEADER)
 
 
 def run_cli(args: Iterable[str] | None = None) -> Path:
