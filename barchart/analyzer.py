@@ -190,8 +190,15 @@ class BarchartOptionsAnalyzer:
         spot_price = float(self.spot_price)
 
         df = df.copy()
-        df["vanna"] = (
-            df["vega"] * (df["delta"] - 0.5) * df["open_interest"] * contract_multiplier * spot_price
+
+        call_mask = df["option_type"] == "call"
+        put_mask = df["option_type"] == "put"
+
+        df.loc[call_mask, "vanna"] = (
+            (1 - df.loc[call_mask, "delta"]) * df.loc[call_mask, "vega"] * 100
+        )
+        df.loc[put_mask, "vanna"] = (
+            df.loc[put_mask, "delta"] * df.loc[put_mask, "vega"] * 100
         )
 
         gex_factor = (contract_multiplier * (spot_price**2)) / 10000.0
