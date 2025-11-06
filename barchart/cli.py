@@ -1,4 +1,4 @@
-"""Command line interface for the Barnhart Options Analyzer."""
+"""Command line interface for the Barchart Options Analyzer."""
 
 from __future__ import annotations
 
@@ -7,18 +7,18 @@ import logging
 from pathlib import Path
 from typing import Iterable, List
 
-from .analyzer import BarnhartOptionsAnalyzer
+from .analyzer import BarchartOptionsAnalyzer
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Compute aggregate Vanna and GEX metrics from Barnhart options CSV files.",
+        description="Compute aggregate Vanna and GEX metrics from Barchart options CSV files.",
     )
     parser.add_argument(
         "--input",
         "-i",
         required=True,
-        help="Path to a Barnhart CSV file or a directory containing CSV files.",
+        help="Path to a Barchart CSV file or a directory containing CSV files.",
     )
     parser.add_argument(
         "--out",
@@ -31,6 +31,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=100.0,
         help="Contract size used in exposure calculations (default: 100).",
+    )
+    parser.add_argument(
+        "--spot-price",
+        type=float,
+        required=True,
+        help="Underlying spot price to use in exposure calculations.",
     )
     parser.add_argument(
         "--no-charts",
@@ -58,9 +64,10 @@ def run_cli(args: Iterable[str] | None = None) -> List[str]:
         format="%(asctime)s [%(levelname)s] %(message)s",
     )
 
-    analyzer = BarnhartOptionsAnalyzer(
+    analyzer = BarchartOptionsAnalyzer(
         contract_multiplier=parsed.contract_multiplier,
         create_charts=not parsed.no_charts,
+        spot_price=parsed.spot_price,
     )
 
     input_path = Path(parsed.input)

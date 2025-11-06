@@ -1,12 +1,12 @@
-# Barnhart Options Analyzer
+# Barchart Options Analyzer
 
-This repository provides a proof-of-concept implementation of the **Barnhart Options Analyzer**.
-It ingests Barnhart-format options chain CSV files, computes aggregate Vanna and Gamma Exposure
+This repository provides a proof-of-concept implementation of the **Barchart Options Analyzer**.
+It ingests Barchart-format options chain CSV files, computes aggregate Vanna and Gamma Exposure
 (GEX) statistics, and produces summary artifacts for downstream research workflows.
 
 ## Features
 
-- Parse one or many Barnhart CSV files and automatically infer ticker/expiry metadata from
+- Parse one or many Barchart CSV files and automatically infer ticker/expiry metadata from
   the filename convention (`$<ticker>-options-exp-YYYY-MM-DD-...csv`).
 - Clean and normalize greeks, open interest, and price columns.
 - Compute total and side-specific (calls vs puts) GEX and Vanna exposure.
@@ -25,16 +25,16 @@ pip install -r requirements.txt
 
 ## Usage
 
-Run the analyzer against a Barnhart CSV file:
+Run the analyzer against a Barchart CSV file:
 
 ```bash
-python -m barnhart.cli --input ./data/$spx-options-exp-2025-11-03.csv --out ./output/
+python -m barchart.cli --input ./data/$spx-options-exp-2025-11-03.csv --out ./output/ --spot-price 5200
 ```
 
 An example dataset is included under `examples/` for quick smoke testing:
 
 ```bash
-python -m barnhart.cli --input ./examples --out ./output --no-charts
+python -m barchart.cli --input ./examples --out ./output --spot-price 5200 --no-charts
 ```
 
 Key options:
@@ -42,6 +42,7 @@ Key options:
 - `--input` (`-i`): CSV file or directory containing multiple CSVs.
 - `--out` (`-o`): Destination directory for JSON/CSV/PNG outputs (created automatically).
 - `--contract-multiplier`: Override the default contract size (100).
+- `--spot-price`: Underlying spot price used for Vanna/GEX calculations (required).
 - `--no-charts`: Skip generating matplotlib PNG charts.
 - `--log-level`: Adjust verbosity (e.g., `DEBUG`).
 
@@ -62,5 +63,5 @@ for dashboarding or quantitative modeling.
 ## Extensibility
 
 This proof-of-concept is structured so that scheduling, data-source integrations, or alternative
-reporting sinks (Slack, Streamlit dashboards, etc.) can be layered on top of the `BarnhartOptionsAnalyzer`
+reporting sinks (Slack, Streamlit dashboards, etc.) can be layered on top of the `BarchartOptionsAnalyzer`
 class in future iterations.
