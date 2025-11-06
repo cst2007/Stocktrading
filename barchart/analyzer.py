@@ -61,7 +61,7 @@ class BarchartOptionsAnalyzer:
     """
 
     _FILENAME_PATTERN = re.compile(
-        r"\$(?P<ticker>[a-zA-Z0-9]+)-options-exp-(?P<expiry>\d{4}-\d{2}-\d{2}).*\.csv$"
+        r"(?P<ticker>\$?[a-zA-Z0-9]+)-(?:options|volatility-greeks)-exp-(?P<expiry>\d{4}-\d{2}-\d{2}).*\.csv$"
     )
 
     NUMERIC_COLUMNS = {
@@ -156,8 +156,57 @@ class BarchartOptionsAnalyzer:
 
     def _load_csv(self, path: Path) -> pd.DataFrame:
         df = pd.read_csv(path)
+        df = self._reshape_if_side_by_side(df)
         logger.debug("Loaded %d rows", len(df))
         return df
+
+    def _reshape_if_side_by_side(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Convert side-by-side call/put columns into long-form rows.
+
+        Some Barchart exports provide call metrics to the left of the
+        ``Strike`` column and put metrics to the right. This helper converts the
+        layout into the normalized long format expected by the analyzer.
+        """
+
+        if "Strike" not in df.columns:
+            return df
+
+        call_prefix_map = {
+            "IV": "iv",
+            "Delta": "delta",
+            "Gamma": "gamma",
+            "Vega": "vega",
+        }
+        put_prefix_map = {f"{col}.1": name for col, name in call_prefix_map.items()}
+
+        if not set(put_prefix_map).issubset(df.columns):
+            return df
+
+        call_df = df[["Strike", *call_prefix_map.keys()]].copy()
+        call_df.rename(columns={**call_prefix_map, "Strike": "strike"}, inplace=True)
+        call_df["option_type"] = "call"
+
+        put_df = df[["Strike", *put_prefix_map.keys()]].copy()
+        put_df.rename(
+            columns={**put_prefix_map, "Strike": "strike"},
+            inplace=True,
+        )
+        put_df["option_type"] = "put"
+
+        combined = pd.concat([call_df, put_df], ignore_index=True)
+
+        # Normalize numeric values and convert IV percentages to decimals when present.
+        combined["strike"] = pd.to_numeric(combined["strike"], errors="coerce")
+        for column in ("delta", "gamma", "vega"):
+            if column in combined:
+                combined[column] = pd.to_numeric(combined[column], errors="coerce")
+
+        if "iv" in combined:
+            iv_series = combined["iv"].astype(str).str.replace("%", "", regex=False)
+            iv_numeric = pd.to_numeric(iv_series, errors="coerce")
+            combined["iv"] = iv_numeric / 100.0
+
+        return combined
 
     def _preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
