@@ -24,7 +24,7 @@ COMBINED_CSV_HEADER = [
     "Call Vanna",
     "Net GEX",
     "Strike",
-    "Type",
+    "Type.1",
     "Put GEX",
     "Put Vanna",
     "Put Volume",
