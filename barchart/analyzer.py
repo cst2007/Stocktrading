@@ -49,6 +49,10 @@ class StrikeTypeMetric:
     iv: float | None
 
 
+class MissingOpenInterestError(ValueError):
+    """Raised when a CSV lacks open interest data required for GEX."""
+
+
 class BarchartOptionsAnalyzer:
     """Analyze Barchart-formatted options chains.
 
@@ -100,7 +104,11 @@ class BarchartOptionsAnalyzer:
         output_directory.mkdir(parents=True, exist_ok=True)
 
         if path.is_file():
-            return [self._process_file(path, output_directory)]
+            try:
+                return [self._process_file(path, output_directory)]
+            except MissingOpenInterestError as exc:
+                logger.error("Skipping %s: %s", path, exc)
+                return []
 
         if not path.exists():
             raise FileNotFoundError(f"Input path {path} does not exist")
@@ -109,6 +117,8 @@ class BarchartOptionsAnalyzer:
         for csv_path in sorted(path.glob("**/*.csv")):
             try:
                 results.append(self._process_file(csv_path, output_directory))
+            except MissingOpenInterestError as exc:
+                logger.error("Skipping %s: %s", csv_path, exc)
             except Exception:  # pragma: no cover - surfaced via CLI logging
                 logger.exception("Failed to process %s", csv_path)
         if not results:
@@ -337,6 +347,9 @@ class BarchartOptionsAnalyzer:
                 len(df),
             )
             df["open_interest"] = 0.0
+            df.attrs["open_interest_missing"] = True
+        else:
+            df.attrs["open_interest_missing"] = False
 
         missing_mid = df["mid"].isna()
         if missing_mid.any():
@@ -367,6 +380,7 @@ class BarchartOptionsAnalyzer:
         spot_price = float(self.spot_price)
 
         df = df.copy()
+        open_interest_missing = df.attrs.get("open_interest_missing", False)
 
         call_mask = df["option_type"] == "call"
         put_mask = df["option_type"] == "put"
@@ -379,6 +393,11 @@ class BarchartOptionsAnalyzer:
         )
 
         gex_factor = (contract_multiplier * (spot_price**2)) / 10000.0
+
+        if open_interest_missing:
+            raise MissingOpenInterestError(
+                "Input CSV does not include open interest data; cannot compute GEX."
+            )
 
         df["gex"] = df["gamma"] * df["open_interest"] * gex_factor
         df.loc[df["option_type"] == "put", "gex"] *= -1
