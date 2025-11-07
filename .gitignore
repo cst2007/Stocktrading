@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Virtual environments
+.venv/
+
+# Output or data directories
+output/
+dist/
+build/
+
+# Logs and temp files
+*.log
+*.tmp
+*.bak
+
+# IDE settings
+.vscode/
+.idea/
