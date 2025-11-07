@@ -164,48 +164,138 @@ class BarchartOptionsAnalyzer:
         """Convert side-by-side call/put columns into long-form rows.
 
         Some Barchart exports provide call metrics to the left of the
-        ``Strike`` column and put metrics to the right. This helper converts the
-        layout into the normalized long format expected by the analyzer.
+        ``Strike`` column and put metrics to the right. Other exports prefix
+        column names with ``Call``/``Put``. This helper converts the layout into
+        the normalized long format expected by the analyzer.
         """
 
         if "Strike" not in df.columns:
             return df
 
-        call_prefix_map = {
-            "IV": "iv",
-            "Delta": "delta",
-            "Gamma": "gamma",
-            "Vega": "vega",
-        }
-        put_prefix_map = {f"{col}.1": name for col, name in call_prefix_map.items()}
+        def _to_numeric(series: pd.Series, *, is_percentage: bool = False) -> pd.Series:
+            cleaned = (
+                series.astype(str)
+                .str.replace(",", "", regex=False)
+                .str.replace("%", "", regex=False)
+            )
+            numeric = pd.to_numeric(cleaned, errors="coerce")
+            if is_percentage:
+                numeric = numeric / 100.0
+            return numeric
 
-        if not set(put_prefix_map).issubset(df.columns):
+        prefixed_metrics = {
+            "Last": ("last", False),
+            "Bid": ("bid", False),
+            "Ask": ("ask", False),
+            "Change": ("change", False),
+            "Volume": ("volume", False),
+            "Open Int": ("open_interest", False),
+            "IV": ("iv", True),
+            "Delta": ("delta", False),
+            "Gamma": ("gamma", False),
+            "Vega": ("vega", False),
+            "Theta": ("theta", False),
+        }
+
+        def _build_from_prefix(prefix: str) -> Dict[str, tuple[str, bool]]:
+            mapping: Dict[str, tuple[str, bool]] = {}
+            for source, meta in prefixed_metrics.items():
+                column_name = f"{prefix}{source}"
+                if column_name in df.columns:
+                    mapping[column_name] = meta
+            return mapping
+
+        call_prefixed = _build_from_prefix("Call ")
+        put_prefixed = _build_from_prefix("Put ")
+
+        if call_prefixed and put_prefixed:
+            call_df = df[["Strike", *call_prefixed.keys()]].copy()
+            call_df.rename(
+                columns={
+                    "Strike": "strike",
+                    **{column: meta[0] for column, meta in call_prefixed.items()},
+                },
+                inplace=True,
+            )
+            call_df["option_type"] = "call"
+
+            for column, meta in call_prefixed.items():
+                new_name, is_percentage = meta
+                if new_name in call_df.columns:
+                    call_df[new_name] = _to_numeric(call_df[new_name], is_percentage=is_percentage)
+
+            put_df = df[["Strike", *put_prefixed.keys()]].copy()
+            put_df.rename(
+                columns={
+                    "Strike": "strike",
+                    **{column: meta[0] for column, meta in put_prefixed.items()},
+                },
+                inplace=True,
+            )
+            put_df["option_type"] = "put"
+
+            for column, meta in put_prefixed.items():
+                new_name, is_percentage = meta
+                if new_name in put_df.columns:
+                    put_df[new_name] = _to_numeric(put_df[new_name], is_percentage=is_percentage)
+
+            combined = pd.concat([call_df, put_df], ignore_index=True)
+            combined["strike"] = pd.to_numeric(combined["strike"], errors="coerce")
+            return combined
+
+        # Fallback to classic side-by-side layout with ".1" suffixes.
+        base_metrics = {
+            "IV": ("iv", True),
+            "Delta": ("delta", False),
+            "Gamma": ("gamma", False),
+            "Vega": ("vega", False),
+        }
+        call_columns = {
+            column: meta
+            for column, meta in base_metrics.items()
+            if column in df.columns
+        }
+        put_columns = {
+            f"{column}.1": meta
+            for column, meta in base_metrics.items()
+            if f"{column}.1" in df.columns
+        }
+
+        if not put_columns:
             return df
 
-        call_df = df[["Strike", *call_prefix_map.keys()]].copy()
-        call_df.rename(columns={**call_prefix_map, "Strike": "strike"}, inplace=True)
+        call_df = df[["Strike", *call_columns.keys()]].copy()
+        call_df.rename(
+            columns={
+                "Strike": "strike",
+                **{column: meta[0] for column, meta in call_columns.items()},
+            },
+            inplace=True,
+        )
         call_df["option_type"] = "call"
 
-        put_df = df[["Strike", *put_prefix_map.keys()]].copy()
+        for column, meta in call_columns.items():
+            new_name, is_percentage = meta
+            if new_name in call_df.columns:
+                call_df[new_name] = _to_numeric(call_df[new_name], is_percentage=is_percentage)
+
+        put_df = df[["Strike", *put_columns.keys()]].copy()
         put_df.rename(
-            columns={**put_prefix_map, "Strike": "strike"},
+            columns={
+                "Strike": "strike",
+                **{column: meta[0] for column, meta in put_columns.items()},
+            },
             inplace=True,
         )
         put_df["option_type"] = "put"
 
+        for column, meta in put_columns.items():
+            new_name, is_percentage = meta
+            if new_name in put_df.columns:
+                put_df[new_name] = _to_numeric(put_df[new_name], is_percentage=is_percentage)
+
         combined = pd.concat([call_df, put_df], ignore_index=True)
-
-        # Normalize numeric values and convert IV percentages to decimals when present.
         combined["strike"] = pd.to_numeric(combined["strike"], errors="coerce")
-        for column in ("delta", "gamma", "vega"):
-            if column in combined:
-                combined[column] = pd.to_numeric(combined[column], errors="coerce")
-
-        if "iv" in combined:
-            iv_series = combined["iv"].astype(str).str.replace("%", "", regex=False)
-            iv_numeric = pd.to_numeric(iv_series, errors="coerce")
-            combined["iv"] = iv_numeric / 100.0
-
         return combined
 
     def _preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -234,6 +324,20 @@ class BarchartOptionsAnalyzer:
         if "iv" not in df.columns:
             df["iv"] = float("nan")
 
+        missing_required = [column for column in ("delta", "gamma", "vega") if column not in df.columns]
+        if missing_required:
+            raise KeyError(
+                "Missing required columns in CSV: " + ", ".join(sorted(missing_required))
+            )
+
+        has_open_interest = "open_interest" in df.columns
+        if not has_open_interest:
+            logger.warning(
+                "CSV missing open interest column; defaulting open interest to zero for %s rows",
+                len(df),
+            )
+            df["open_interest"] = 0.0
+
         missing_mid = df["mid"].isna()
         if missing_mid.any():
             logger.debug("Computing %d synthetic mid prices", missing_mid.sum())
@@ -242,8 +346,16 @@ class BarchartOptionsAnalyzer:
                     df.loc[missing_mid, ["bid", "ask"]].mean(axis=1)
                 )
 
-        df = df.dropna(subset=["strike", "gamma", "vega", "delta", "open_interest"])
-        df = df[df["open_interest"] > 0]
+        required_columns = [
+            column
+            for column in ("strike", "gamma", "vega", "delta", "open_interest")
+            if column in df.columns
+        ]
+        if required_columns:
+            df = df.dropna(subset=required_columns)
+
+        if has_open_interest:
+            df = df[df["open_interest"] > 0]
 
         return df
 
