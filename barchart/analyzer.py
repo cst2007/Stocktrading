@@ -85,6 +85,8 @@ class BarchartOptionsAnalyzer:
         "mid",
         "bid",
         "ask",
+        "gex",
+        "vanna",
     }
 
     def __init__(
@@ -178,6 +180,8 @@ class BarchartOptionsAnalyzer:
 
     def _load_csv(self, path: Path) -> pd.DataFrame:
         df = pd.read_csv(path)
+        # Trim whitespace around headers to make downstream matching resilient
+        df.rename(columns=lambda column: column.strip(), inplace=True)
         df = self._reshape_if_side_by_side(df)
         logger.debug("Loaded %d rows", len(df))
         return df
@@ -191,29 +195,44 @@ class BarchartOptionsAnalyzer:
         the normalized long format expected by the analyzer.
         """
 
-        if "Strike" not in df.columns:
+        normalized_columns = {
+            column: re.sub(r"[^a-z0-9]", "", column.lower())
+            for column in df.columns
+        }
+
+        strike_column = None
+        for column, normalized in normalized_columns.items():
+            if normalized in {"strike", "strikeprice"}:
+                strike_column = column
+                break
+
+        if strike_column is None:
             return df
 
         # Phase 1 unified exports prefix normalized metrics with ``call_`` and
         # ``puts_``. Detect this schema first so downstream tooling receives a
         # consistent long-form view regardless of the upstream format.
-        call_prefixed = [column for column in df.columns if column.startswith("call_")]
-        put_prefixed = [column for column in df.columns if column.startswith("puts_")]
+        call_prefixed = [
+            column for column in df.columns if column.lower().startswith("call_")
+        ]
+        put_prefixed = [
+            column for column in df.columns if column.lower().startswith("puts_")
+        ]
         if call_prefixed and put_prefixed:
-            call_df = df[["Strike", *call_prefixed]].copy()
+            call_df = df[[strike_column, *call_prefixed]].copy()
             call_df.rename(
                 columns={
-                    "Strike": "strike",
+                    strike_column: "strike",
                     **{column: column.removeprefix("call_") for column in call_prefixed},
                 },
                 inplace=True,
             )
             call_df["option_type"] = "call"
 
-            put_df = df[["Strike", *put_prefixed]].copy()
+            put_df = df[[strike_column, *put_prefixed]].copy()
             put_df.rename(
                 columns={
-                    "Strike": "strike",
+                    strike_column: "strike",
                     **{column: column.removeprefix("puts_") for column in put_prefixed},
                 },
                 inplace=True,
@@ -245,29 +264,38 @@ class BarchartOptionsAnalyzer:
             "Change": ("change", False),
             "Volume": ("volume", False),
             "Open Int": ("open_interest", False),
+            "Open Interest": ("open_interest", False),
             "IV": ("iv", True),
             "Delta": ("delta", False),
             "Gamma": ("gamma", False),
             "Vega": ("vega", False),
             "Theta": ("theta", False),
+            "GEX": ("gex", False),
+            "Vanna": ("vanna", False),
         }
 
         def _build_from_prefix(prefix: str) -> Dict[str, tuple[str, bool]]:
             mapping: Dict[str, tuple[str, bool]] = {}
-            for source, meta in prefixed_metrics.items():
-                column_name = f"{prefix}{source}"
-                if column_name in df.columns:
-                    mapping[column_name] = meta
+            normalized_prefix = re.sub(r"[^a-z0-9]", "", prefix.lower())
+            for column in df.columns:
+                normalized = re.sub(r"[^a-z0-9]", "", column.lower())
+                if not normalized.startswith(normalized_prefix):
+                    continue
+                suffix = normalized[len(normalized_prefix) :]
+                for source, meta in prefixed_metrics.items():
+                    if suffix == re.sub(r"[^a-z0-9]", "", source.lower()):
+                        mapping[column] = meta
+                        break
             return mapping
 
         call_prefixed = _build_from_prefix("Call ")
         put_prefixed = _build_from_prefix("Put ")
 
         if call_prefixed and put_prefixed:
-            call_df = df[["Strike", *call_prefixed.keys()]].copy()
+            call_df = df[[strike_column, *call_prefixed.keys()]].copy()
             call_df.rename(
                 columns={
-                    "Strike": "strike",
+                    strike_column: "strike",
                     **{column: meta[0] for column, meta in call_prefixed.items()},
                 },
                 inplace=True,
@@ -279,10 +307,10 @@ class BarchartOptionsAnalyzer:
                 if new_name in call_df.columns:
                     call_df[new_name] = _to_numeric(call_df[new_name], is_percentage=is_percentage)
 
-            put_df = df[["Strike", *put_prefixed.keys()]].copy()
+            put_df = df[[strike_column, *put_prefixed.keys()]].copy()
             put_df.rename(
                 columns={
-                    "Strike": "strike",
+                    strike_column: "strike",
                     **{column: meta[0] for column, meta in put_prefixed.items()},
                 },
                 inplace=True,
@@ -319,10 +347,10 @@ class BarchartOptionsAnalyzer:
         if not put_columns:
             return df
 
-        call_df = df[["Strike", *call_columns.keys()]].copy()
+        call_df = df[[strike_column, *call_columns.keys()]].copy()
         call_df.rename(
             columns={
-                "Strike": "strike",
+                strike_column: "strike",
                 **{column: meta[0] for column, meta in call_columns.items()},
             },
             inplace=True,
@@ -334,10 +362,10 @@ class BarchartOptionsAnalyzer:
             if new_name in call_df.columns:
                 call_df[new_name] = _to_numeric(call_df[new_name], is_percentage=is_percentage)
 
-        put_df = df[["Strike", *put_columns.keys()]].copy()
+        put_df = df[[strike_column, *put_columns.keys()]].copy()
         put_df.rename(
             columns={
-                "Strike": "strike",
+                strike_column: "strike",
                 **{column: meta[0] for column, meta in put_columns.items()},
             },
             inplace=True,
@@ -358,7 +386,7 @@ class BarchartOptionsAnalyzer:
 
         # Normalize option type column
         type_column = None
-        for candidate in ("type", "option_type", "optionType"):
+        for candidate in ("type", "Type", "option_type", "optionType"):
             if candidate in df.columns:
                 type_column = candidate
                 break
@@ -378,12 +406,6 @@ class BarchartOptionsAnalyzer:
 
         if "iv" not in df.columns:
             df["iv"] = float("nan")
-
-        missing_required = [column for column in ("delta", "gamma", "vega") if column not in df.columns]
-        if missing_required:
-            raise MissingGreeksError(
-                "Missing required columns in CSV: " + ", ".join(sorted(missing_required))
-            )
 
         has_open_interest = "open_interest" in df.columns
         if not has_open_interest:
@@ -406,7 +428,15 @@ class BarchartOptionsAnalyzer:
 
         required_columns = [
             column
-            for column in ("strike", "gamma", "vega", "delta", "open_interest")
+            for column in (
+                "strike",
+                "gamma",
+                "vega",
+                "delta",
+                "open_interest",
+                "gex",
+                "vanna",
+            )
             if column in df.columns
         ]
         if required_columns:
@@ -433,27 +463,63 @@ class BarchartOptionsAnalyzer:
         call_mask = df["option_type"] == "call"
         put_mask = df["option_type"] == "put"
 
-        df.loc[call_mask, "vanna"] = (
-            df.loc[call_mask, "open_interest"]
-            * (1 - df.loc[call_mask, "delta"])
-            * df.loc[call_mask, "vega"]
-            * 100
+        can_compute_vanna = {
+            "delta",
+            "vega",
+            "open_interest",
+        }.issubset(df.columns) and not (
+            df["delta"].isna().all() or df["vega"].isna().all()
         )
-        df.loc[put_mask, "vanna"] = (
-            df.loc[put_mask, "open_interest"]
-            * (1 - df.loc[put_mask, "delta"])
-            * df.loc[put_mask, "vega"]
-            * 100
-        )
+
+        if can_compute_vanna:
+            df.loc[call_mask, "vanna"] = (
+                df.loc[call_mask, "open_interest"]
+                * (1 - df.loc[call_mask, "delta"])
+                * df.loc[call_mask, "vega"]
+                * 100
+            )
+            df.loc[put_mask, "vanna"] = (
+                df.loc[put_mask, "open_interest"]
+                * (1 - df.loc[put_mask, "delta"])
+                * df.loc[put_mask, "vega"]
+                * 100
+            )
+        elif "vanna" in df.columns:
+            df["vanna"] = pd.to_numeric(df["vanna"], errors="coerce").fillna(0.0)
+        else:
+            raise MissingGreeksError(
+                "CSV is missing the data required to compute Vanna (expected delta/vega or a vanna column)."
+            )
 
         gex_factor = contract_multiplier
 
-        if open_interest_missing:
-            raise MissingOpenInterestError(
-                "Input CSV does not include open interest data; cannot compute GEX."
-            )
+        can_compute_gex = {
+            "gamma",
+            "open_interest",
+        }.issubset(df.columns) and not df["gamma"].isna().all()
 
-        df["gex"] = df["gamma"] * df["open_interest"] * gex_factor
+        if can_compute_gex:
+            df["gex"] = df["gamma"] * df["open_interest"] * gex_factor
+            if open_interest_missing:
+                logger.warning(
+                    "Open interest was missing; GEX values are computed assuming zero open interest."
+                )
+        elif "gex" in df.columns:
+            df["gex"] = pd.to_numeric(df["gex"], errors="coerce").fillna(0.0)
+            if open_interest_missing:
+                logger.warning(
+                    "Open interest missing from CSV; using provided GEX values without adjustment."
+                )
+        else:
+            if open_interest_missing:
+                logger.warning(
+                    "Open interest missing from CSV; defaulting GEX to zero for all rows."
+                )
+                df["gex"] = 0.0
+            else:
+                raise MissingGreeksError(
+                    "CSV is missing the data required to compute GEX (expected gamma or a gex column)."
+                )
 
         totals = df.groupby("option_type")[["gex", "vanna"]].sum()
         call_vanna = float(totals.loc["call", "vanna"]) if "call" in totals.index else 0.0
@@ -462,16 +528,8 @@ class BarchartOptionsAnalyzer:
         calls = df[df["option_type"] == "call"]
         puts = df[df["option_type"] == "put"]
 
-        call_gex = (
-            float((calls["gamma"] * calls["open_interest"] * gex_factor).sum())
-            if not calls.empty
-            else 0.0
-        )
-        put_gex = (
-            float((puts["gamma"] * puts["open_interest"] * gex_factor).sum())
-            if not puts.empty
-            else 0.0
-        )
+        call_gex = float(calls["gex"].sum()) if not calls.empty else 0.0
+        put_gex = float(puts["gex"].sum()) if not puts.empty else 0.0
 
         gex_by_strike = df.groupby("strike")["gex"].sum().sort_index()
         vanna_by_strike = df.groupby("strike")["vanna"].sum().sort_index()
