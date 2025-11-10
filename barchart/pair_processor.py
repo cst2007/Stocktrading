@@ -2,21 +2,25 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Sequence
 
 from .analyzer import BarchartOptionsAnalyzer, ProcessingResult
 from .combiner import COMBINED_CSV_HEADER, combine_option_files
+from .derived_metrics import DERIVED_CSV_HEADER, compute_derived_metrics
+
+logger = logging.getLogger(__name__)
 
 _PAIR_PATTERN = re.compile(
-    r"^(?P<prefix>.+?)-(?:options|volatility-greeks)-exp-(?P<suffix>.+)\.csv$",
+    r"^(?P<ticker>[a-zA-Z0-9$]+)-(?P<kind>options|volatility-greeks)-exp-"
+    r"(?P<expiry>\d{4}-\d{2}-\d{2})-weekly-(?P<week>\d+)-strikes(?P<suffix>.*)\.csv$",
     re.IGNORECASE,
 )
-_EXPIRY_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
 @dataclass(slots=True)
@@ -28,13 +32,17 @@ class OptionFilePair:
     expiry: str
     side_by_side_path: Path
     greeks_path: Path
-    last_updated: datetime
+    upload_time: datetime
 
     @property
     def label(self) -> str:
         if self.expiry != "UNKNOWN":
             return f"{self.ticker} {self.expiry}"
         return self.ticker
+
+    @property
+    def batch_key(self) -> str:
+        return self.key
 
     def to_dict(self, *, relative_to: Path | None = None) -> Dict[str, object]:
         def _format_path(path: Path) -> str:
@@ -47,12 +55,13 @@ class OptionFilePair:
 
         return {
             "id": self.key,
+            "batch_key": self.batch_key,
             "ticker": self.ticker,
             "expiry": self.expiry,
             "label": self.label,
             "side_by_side": _format_path(self.side_by_side_path),
             "greeks": _format_path(self.greeks_path),
-            "last_modified": self.last_updated.isoformat(),
+            "upload_time": self.upload_time.isoformat().replace("+00:00", "Z"),
         }
 
 
@@ -61,9 +70,7 @@ def discover_pairs(input_directory: Path) -> List[OptionFilePair]:
 
     input_directory = input_directory.expanduser().resolve()
 
-    side_files: Dict[str, Path] = {}
-    greeks_files: Dict[str, Path] = {}
-    metadata: Dict[str, Dict[str, str]] = {}
+    grouped: Dict[str, Dict[str, object]] = {}
 
     for csv_path in sorted(input_directory.glob("*.csv")):
         name_lower = csv_path.name.lower()
@@ -74,45 +81,67 @@ def discover_pairs(input_directory: Path) -> List[OptionFilePair]:
 
         match = _PAIR_PATTERN.match(csv_path.name)
         if not match:
+            logger.debug("Ignoring unmatched file name: %s", csv_path.name)
             continue
 
-        prefix = match.group("prefix")
-        suffix = match.group("suffix")
-        normalized_suffix = suffix.replace("side-by-side-", "")
-        key = f"{prefix.lower()}__{normalized_suffix.lower()}"
+        ticker = match.group("ticker").lstrip("$").upper()
+        expiry = match.group("expiry")
+        week = match.group("week")
+        suffix = match.group("suffix") or ""
+        normalized_suffix = re.sub(r"-side-by-side", "", suffix, flags=re.IGNORECASE)
+        kind = match.group("kind").lower()
 
-        ticker = prefix.lstrip("$").upper()
-        expiry_match = _EXPIRY_PATTERN.search(suffix)
-        expiry = expiry_match.group(1) if expiry_match else "UNKNOWN"
-
-        metadata[key] = {"ticker": ticker, "expiry": expiry}
-
-        if "side-by-side" in name_lower:
-            side_files[key] = csv_path
-        elif "volatility-greeks" in name_lower:
-            greeks_files[key] = csv_path
+        group_key = f"{ticker}__{expiry}__{week}{normalized_suffix.lower()}"
+        entry = grouped.setdefault(
+            group_key,
+            {
+                "ticker": ticker,
+                "expiry": expiry,
+                "week": week,
+                "suffix": normalized_suffix,
+                "paths": {},
+            },
+        )
+        entry["paths"][kind] = csv_path
 
     pairs: List[OptionFilePair] = []
-    for key in sorted(set(side_files).intersection(greeks_files)):
-        side_path = side_files[key]
-        greeks_path = greeks_files[key]
-        info = metadata[key]
-        last_modified = datetime.fromtimestamp(
-            max(side_path.stat().st_mtime, greeks_path.stat().st_mtime)
+    for key, info in grouped.items():
+        paths: Dict[str, Path] = info["paths"]
+        options_path = paths.get("options")
+        greeks_path = paths.get("volatility-greeks")
+
+        if options_path is None or greeks_path is None:
+            missing_kind = "volatility" if options_path else "options"
+            logger.warning(
+                "[%s] %s %s skipped: missing %s file",
+                datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                info["ticker"],
+                info["expiry"],
+                missing_kind,
+            )
+            continue
+
+        upload_timestamp = datetime.fromtimestamp(
+            max(options_path.stat().st_mtime, greeks_path.stat().st_mtime),
+            tz=timezone.utc,
+        )
+        batch_key = (
+            f"{info['ticker']}_{info['expiry']}"
+            f"_{upload_timestamp.strftime('%Y%m%dT%H%M%SZ')}"
         )
 
         pairs.append(
             OptionFilePair(
-                key=key,
+                key=batch_key,
                 ticker=info["ticker"],
                 expiry=info["expiry"],
-                side_by_side_path=side_path,
+                side_by_side_path=options_path,
                 greeks_path=greeks_path,
-                last_updated=last_modified,
+                upload_time=upload_timestamp,
             )
         )
 
-    return pairs
+    return sorted(pairs, key=lambda pair: pair.upload_time, reverse=True)
 
 
 def process_pair(
@@ -142,10 +171,25 @@ def process_pair(
         contract_multiplier=contract_multiplier,
     )
 
-    combined_filename = _derive_combined_filename(pair.side_by_side_path.name)
+    combined_filename = _derive_combined_filename(pair)
     combined_path = output_directory / combined_filename
     combined_path.parent.mkdir(parents=True, exist_ok=True)
     combined_df.to_csv(combined_path, index=False, header=COMBINED_CSV_HEADER)
+
+    derived_dir = output_directory / "derived"
+    derived_dir.mkdir(parents=True, exist_ok=True)
+    calculation_time = datetime.now(timezone.utc)
+    derived_df = compute_derived_metrics(combined_df, calculation_time=calculation_time)
+    safe_ticker = pair.ticker.replace("/", "-") or "unknown"
+    safe_expiry = (
+        pair.expiry.replace("/", "-") if pair.expiry != "UNKNOWN" else "unknown"
+    )
+    derived_filename = (
+        f"derived_metrics_{safe_ticker}_{safe_expiry}_"
+        f"{calculation_time.strftime('%Y%m%dT%H%M%SZ')}.csv"
+    )
+    derived_path = derived_dir / derived_filename
+    derived_df.to_csv(derived_path, index=False, header=DERIVED_CSV_HEADER)
 
     analyzer_output_dir = output_directory / "analysis"
     analyzer_output_dir.mkdir(parents=True, exist_ok=True)
@@ -167,6 +211,7 @@ def process_pair(
         "pair": pair.to_dict(relative_to=pair.side_by_side_path.parent),
         "combined_csv": str(combined_path),
         "moved_files": [str(path) for path in moved_files],
+        "derived_csv": str(derived_path),
         "summaries": summaries,
     }
 
@@ -207,13 +252,10 @@ def _move_to_processed(source: Path, destination_dir: Path) -> Path:
     return destination
 
 
-def _derive_combined_filename(side_by_side_name: str) -> str:
-    if "side-by-side" in side_by_side_name:
-        return side_by_side_name.replace("side-by-side", "combined")
-    stem, dot, suffix = side_by_side_name.partition(".")
-    if not dot:
-        return f"{side_by_side_name}_combined"
-    return f"{stem}_combined.{suffix}"
+def _derive_combined_filename(pair: OptionFilePair) -> str:
+    expiry = pair.expiry.replace("/", "-") if pair.expiry != "UNKNOWN" else "unknown"
+    ticker = pair.ticker.replace("/", "-") or "unknown"
+    return f"unified_{ticker}_{expiry}.csv"
 
 
 __all__ = ["OptionFilePair", "discover_pairs", "process_pair"]
