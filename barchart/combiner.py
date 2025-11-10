@@ -13,26 +13,25 @@ import pandas as pd
 # column order returned by :func:`combine_option_files` so downstream tooling can
 # rely on the human friendly labels produced by the CLI.
 COMBINED_CSV_HEADER = [
-    "Type",
-    "Call Volume",
-    "Call Open Int",
-    "Call IV",
-    "Call Delta",
-    "Call Gamma",
-    "Call Vega",
-    "Call GEX",
-    "Call Vanna",
-    "Net GEX",
     "Strike",
-    "Type.1",
-    "Put GEX",
-    "Put Vanna",
-    "Put Volume",
-    "Put Open Int",
-    "Put IV",
-    "Put Delta",
-    "Put Gamma",
-    "Put Vega",
+    "call_volume",
+    "call_open_interest",
+    "call_iv",
+    "call_delta",
+    "call_gamma",
+    "call_vega",
+    "call_gex",
+    "call_vanna",
+    "puts_volume",
+    "puts_open_interest",
+    "puts_iv",
+    "puts_delta",
+    "puts_gamma",
+    "puts_vega",
+    "puts_gex",
+    "puts_vanna",
+    "net_gex",
+    "net_vanna",
 ]
 
 
@@ -65,22 +64,25 @@ def _load_side_by_side(path: Path) -> pd.DataFrame:
 
     side = pd.DataFrame(
         {
-            "strike": pd.to_numeric(df["Strike"], errors="coerce"),
-            "call_type": df["Type"].astype(str).str.title(),
+            "Strike": pd.to_numeric(df["Strike"], errors="coerce"),
             "call_volume": _clean_numeric(df["Volume"]),
             "call_open_interest": _clean_numeric(df["Open Int"]),
             "call_iv": _clean_numeric(df["IV"], is_percent=True),
-            "put_type": df["Type.1"].astype(str).str.title(),
-            "put_volume": _clean_numeric(df["Volume.1"]),
-            "put_open_interest": _clean_numeric(df["Open Int.1"]),
-            "put_iv": _clean_numeric(df["IV.1"], is_percent=True),
+            "puts_volume": _clean_numeric(df["Volume.1"]),
+            "puts_open_interest": _clean_numeric(df["Open Int.1"]),
+            "puts_iv": _clean_numeric(df["IV.1"], is_percent=True),
         }
     )
 
-    for column in ("call_volume", "call_open_interest", "put_volume", "put_open_interest"):
+    for column in (
+        "call_volume",
+        "call_open_interest",
+        "puts_volume",
+        "puts_open_interest",
+    ):
         side[column] = side[column].round().astype("Int64")
 
-    return side.dropna(subset=["strike"]).reset_index(drop=True)
+    return side.dropna(subset=["Strike"]).reset_index(drop=True)
 
 
 def _load_greeks(path: Path) -> pd.DataFrame:
@@ -102,17 +104,17 @@ def _load_greeks(path: Path) -> pd.DataFrame:
 
     greeks = pd.DataFrame(
         {
-            "strike": pd.to_numeric(df["Strike"], errors="coerce"),
+            "Strike": pd.to_numeric(df["Strike"], errors="coerce"),
             "call_delta": pd.to_numeric(df["Delta"], errors="coerce"),
             "call_gamma": pd.to_numeric(df["Gamma"], errors="coerce"),
             "call_vega": pd.to_numeric(df["Vega"], errors="coerce"),
-            "put_delta": pd.to_numeric(df["Delta.1"], errors="coerce"),
-            "put_gamma": pd.to_numeric(df["Gamma.1"], errors="coerce"),
-            "put_vega": pd.to_numeric(df["Vega.1"], errors="coerce"),
+            "puts_delta": pd.to_numeric(df["Delta.1"], errors="coerce"),
+            "puts_gamma": pd.to_numeric(df["Gamma.1"], errors="coerce"),
+            "puts_vega": pd.to_numeric(df["Vega.1"], errors="coerce"),
         }
     )
 
-    return greeks.dropna(subset=["strike"]).reset_index(drop=True)
+    return greeks.dropna(subset=["Strike"]).reset_index(drop=True)
 
 
 def combine_option_files(
@@ -127,17 +129,27 @@ def combine_option_files(
     side = _load_side_by_side(side_by_side_path)
     greeks = _load_greeks(greeks_path)
 
-    merged = pd.merge(side, greeks, on="strike", how="inner", validate="one_to_one")
+    merged = pd.merge(side, greeks, on="Strike", how="inner", validate="one_to_one")
 
-    gex_factor = (contract_multiplier * (float(spot_price) ** 2)) / 10000.0
+    # Derived exposures follow contract specifications outlined in Phase 1.
+    merged["call_gex"] = (
+        merged["call_open_interest"] * merged["call_gamma"] * contract_multiplier
+    )
+    merged["puts_gex"] = (
+        merged["puts_open_interest"] * merged["puts_gamma"] * contract_multiplier
+    )
+    merged["call_vanna"] = (
+        merged["call_open_interest"] * (1 - merged["call_delta"]) * merged["call_vega"] * 100
+    )
+    merged["puts_vanna"] = (
+        merged["puts_open_interest"]
+        * (1 - merged["puts_delta"])
+        * merged["puts_vega"]
+        * 100
+    )
 
-    merged["call_gex"] = merged["call_gamma"] * merged["call_open_interest"] * gex_factor
-    merged["put_gex"] = -merged["put_gamma"] * merged["put_open_interest"] * gex_factor
-
-    merged["call_vanna"] = (1 - merged["call_delta"]) * merged["call_vega"] * 100
-    merged["put_vanna"] = merged["put_delta"] * merged["put_vega"] * 100
-
-    merged["net_gex"] = merged["call_gex"] + merged["put_gex"]
+    merged["net_gex"] = merged["call_gex"] + merged["puts_gex"]
+    merged["net_vanna"] = merged["call_vanna"] + merged["puts_vanna"]
 
     rounding_map = {
         "call_iv": 4,
@@ -146,19 +158,20 @@ def combine_option_files(
         "call_vega": 4,
         "call_gex": 4,
         "call_vanna": 6,
+        "puts_gex": 4,
+        "puts_vanna": 6,
+        "puts_iv": 4,
+        "puts_delta": 4,
+        "puts_gamma": 6,
+        "puts_vega": 4,
         "net_gex": 4,
-        "put_gex": 4,
-        "put_vanna": 6,
-        "put_iv": 4,
-        "put_delta": 4,
-        "put_gamma": 6,
-        "put_vega": 4,
+        "net_vanna": 6,
     }
     for column, decimals in rounding_map.items():
         merged[column] = merged[column].round(decimals)
 
     columns = [
-        "call_type",
+        "Strike",
         "call_volume",
         "call_open_interest",
         "call_iv",
@@ -167,20 +180,19 @@ def combine_option_files(
         "call_vega",
         "call_gex",
         "call_vanna",
+        "puts_volume",
+        "puts_open_interest",
+        "puts_iv",
+        "puts_delta",
+        "puts_gamma",
+        "puts_vega",
+        "puts_gex",
+        "puts_vanna",
         "net_gex",
-        "strike",
-        "put_type",
-        "put_gex",
-        "put_vanna",
-        "put_volume",
-        "put_open_interest",
-        "put_iv",
-        "put_delta",
-        "put_gamma",
-        "put_vega",
+        "net_vanna",
     ]
 
-    return merged[columns].sort_values("strike").reset_index(drop=True)
+    return merged[columns].sort_values("Strike").reset_index(drop=True)
 
 
 def _write_output(df: pd.DataFrame, output_path: Path) -> None:

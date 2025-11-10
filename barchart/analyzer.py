@@ -155,6 +155,14 @@ class BarchartOptionsAnalyzer:
         return result
 
     def _parse_metadata_from_filename(self, filename: str) -> (str, str):
+        unified_match = re.match(
+            r"unified_(?P<ticker>[a-zA-Z0-9$]+)_(?P<expiry>\d{4}-\d{2}-\d{2})",
+            filename,
+            re.IGNORECASE,
+        )
+        if unified_match:
+            return unified_match.group("ticker").upper(), unified_match.group("expiry")
+
         match = self._FILENAME_PATTERN.search(filename)
         if not match:
             logger.warning(
@@ -181,6 +189,39 @@ class BarchartOptionsAnalyzer:
 
         if "Strike" not in df.columns:
             return df
+
+        # Phase 1 unified exports prefix normalized metrics with ``call_`` and
+        # ``puts_``. Detect this schema first so downstream tooling receives a
+        # consistent long-form view regardless of the upstream format.
+        call_prefixed = [column for column in df.columns if column.startswith("call_")]
+        put_prefixed = [column for column in df.columns if column.startswith("puts_")]
+        if call_prefixed and put_prefixed:
+            call_df = df[["Strike", *call_prefixed]].copy()
+            call_df.rename(
+                columns={
+                    "Strike": "strike",
+                    **{column: column.removeprefix("call_") for column in call_prefixed},
+                },
+                inplace=True,
+            )
+            call_df["option_type"] = "call"
+
+            put_df = df[["Strike", *put_prefixed]].copy()
+            put_df.rename(
+                columns={
+                    "Strike": "strike",
+                    **{column: column.removeprefix("puts_") for column in put_prefixed},
+                },
+                inplace=True,
+            )
+            put_df["option_type"] = "put"
+
+            combined = pd.concat([call_df, put_df], ignore_index=True)
+            for column in combined.columns:
+                if column not in {"option_type", "strike"}:
+                    combined[column] = pd.to_numeric(combined[column], errors="coerce")
+            combined["strike"] = pd.to_numeric(combined["strike"], errors="coerce")
+            return combined
 
         def _to_numeric(series: pd.Series, *, is_percentage: bool = False) -> pd.Series:
             cleaned = (
@@ -373,12 +414,7 @@ class BarchartOptionsAnalyzer:
         return df
 
     def _compute_metrics(self, df: pd.DataFrame) -> Dict[str, object]:
-        if self.spot_price is None:
-            raise ValueError("spot_price must be provided before computing metrics")
-
         contract_multiplier = self.contract_multiplier
-        spot_price = float(self.spot_price)
-
         df = df.copy()
         open_interest_missing = df.attrs.get("open_interest_missing", False)
 
@@ -386,13 +422,19 @@ class BarchartOptionsAnalyzer:
         put_mask = df["option_type"] == "put"
 
         df.loc[call_mask, "vanna"] = (
-            (1 - df.loc[call_mask, "delta"]) * df.loc[call_mask, "vega"] * 100
+            df.loc[call_mask, "open_interest"]
+            * (1 - df.loc[call_mask, "delta"])
+            * df.loc[call_mask, "vega"]
+            * 100
         )
         df.loc[put_mask, "vanna"] = (
-            df.loc[put_mask, "delta"] * df.loc[put_mask, "vega"] * 100
+            df.loc[put_mask, "open_interest"]
+            * (1 - df.loc[put_mask, "delta"])
+            * df.loc[put_mask, "vega"]
+            * 100
         )
 
-        gex_factor = (contract_multiplier * (spot_price**2)) / 10000.0
+        gex_factor = contract_multiplier
 
         if open_interest_missing:
             raise MissingOpenInterestError(
@@ -400,7 +442,6 @@ class BarchartOptionsAnalyzer:
             )
 
         df["gex"] = df["gamma"] * df["open_interest"] * gex_factor
-        df.loc[df["option_type"] == "put", "gex"] *= -1
 
         totals = df.groupby("option_type")[["gex", "vanna"]].sum()
         call_vanna = float(totals.loc["call", "vanna"]) if "call" in totals.index else 0.0
@@ -409,8 +450,16 @@ class BarchartOptionsAnalyzer:
         calls = df[df["option_type"] == "call"]
         puts = df[df["option_type"] == "put"]
 
-        call_gex = float((calls["gamma"] * calls["open_interest"] * gex_factor).sum()) if not calls.empty else 0.0
-        put_gex = float((puts["gamma"] * puts["open_interest"] * gex_factor).sum()) if not puts.empty else 0.0
+        call_gex = (
+            float((calls["gamma"] * calls["open_interest"] * gex_factor).sum())
+            if not calls.empty
+            else 0.0
+        )
+        put_gex = (
+            float((puts["gamma"] * puts["open_interest"] * gex_factor).sum())
+            if not puts.empty
+            else 0.0
+        )
 
         gex_by_strike = df.groupby("strike")["gex"].sum().sort_index()
         vanna_by_strike = df.groupby("strike")["vanna"].sum().sort_index()
