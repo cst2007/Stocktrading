@@ -53,6 +53,10 @@ class MissingOpenInterestError(ValueError):
     """Raised when a CSV lacks open interest data required for GEX."""
 
 
+class MissingGreeksError(ValueError):
+    """Raised when a CSV does not include the Greeks required for analytics."""
+
+
 class BarchartOptionsAnalyzer:
     """Analyze Barchart-formatted options chains.
 
@@ -106,7 +110,7 @@ class BarchartOptionsAnalyzer:
         if path.is_file():
             try:
                 return [self._process_file(path, output_directory)]
-            except MissingOpenInterestError as exc:
+            except (MissingOpenInterestError, MissingGreeksError) as exc:
                 logger.error("Skipping %s: %s", path, exc)
                 return []
 
@@ -117,7 +121,7 @@ class BarchartOptionsAnalyzer:
         for csv_path in sorted(path.glob("**/*.csv")):
             try:
                 results.append(self._process_file(csv_path, output_directory))
-            except MissingOpenInterestError as exc:
+            except (MissingOpenInterestError, MissingGreeksError) as exc:
                 logger.error("Skipping %s: %s", csv_path, exc)
             except Exception:  # pragma: no cover - surfaced via CLI logging
                 logger.exception("Failed to process %s", csv_path)
@@ -359,7 +363,7 @@ class BarchartOptionsAnalyzer:
                 type_column = candidate
                 break
         if type_column is None:
-            raise KeyError("No option type column found in CSV")
+            raise MissingGreeksError("No option type column found in CSV")
         df[type_column] = df[type_column].astype(str).str.lower().str.strip()
         df[type_column] = df[type_column].replace({"c": "call", "p": "put"})
         df[type_column] = df[type_column].replace({"calls": "call", "puts": "put"})
@@ -377,7 +381,7 @@ class BarchartOptionsAnalyzer:
 
         missing_required = [column for column in ("delta", "gamma", "vega") if column not in df.columns]
         if missing_required:
-            raise KeyError(
+            raise MissingGreeksError(
                 "Missing required columns in CSV: " + ", ".join(sorted(missing_required))
             )
 
@@ -406,10 +410,18 @@ class BarchartOptionsAnalyzer:
             if column in df.columns
         ]
         if required_columns:
+            before_dropna = len(df)
             df = df.dropna(subset=required_columns)
+            dropped_na = before_dropna - len(df)
+            if dropped_na:
+                logger.debug("Dropped %d rows with non-numeric required fields", dropped_na)
 
         if has_open_interest:
-            df = df[df["open_interest"] > 0]
+            before_invalid_oi = len(df)
+            df = df[df["open_interest"].notna()]
+            dropped_invalid_oi = before_invalid_oi - len(df)
+            if dropped_invalid_oi:
+                logger.debug("Dropped %d rows with missing open interest values", dropped_invalid_oi)
 
         return df
 
