@@ -29,6 +29,28 @@ function formatTimestamp(value) {
   return date.toLocaleString();
 }
 
+function buildRelativeUrl(targetFile) {
+  const { origin, pathname } = window.location;
+  let basePath = pathname;
+
+  if (!basePath.endsWith('/')) {
+    const lastSlashIndex = basePath.lastIndexOf('/');
+    const trailingSegment = basePath.slice(lastSlashIndex + 1);
+
+    if (trailingSegment && !trailingSegment.includes('.')) {
+      basePath = `${basePath}/`;
+    } else {
+      basePath = basePath.slice(0, lastSlashIndex + 1);
+    }
+  }
+
+  if (!basePath.endsWith('/')) {
+    basePath += '/';
+  }
+
+  return `${origin}${basePath}${targetFile}`;
+}
+
 function renderOverview(data) {
   overviewSection.hidden = false;
   pairElement.textContent = data.pairDisplay || 'Unknown pair';
@@ -166,7 +188,8 @@ function loadResult() {
 }
 
 backButton.addEventListener('click', () => {
-  window.location.href = 'index.html';
+  const indexUrl = buildRelativeUrl('index.html');
+  window.location.assign(indexUrl);
 });
 
 window.addEventListener('DOMContentLoaded', () => {
