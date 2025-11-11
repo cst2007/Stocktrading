@@ -45,8 +45,8 @@ def _format_timestamp(timestamp: datetime) -> str:
 
 def _validate_iv_direction(iv_direction: str) -> str:
     direction = (iv_direction or "").strip().lower()
-    if direction not in {"up", "down"}:
-        raise ValueError("iv_direction must be either 'up' or 'down'")
+    if direction not in {"up", "down", "unknown"}:
+        raise ValueError("iv_direction must be 'up', 'down', or 'unknown'")
     return direction
 
 

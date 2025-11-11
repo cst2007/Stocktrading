@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 def _normalize_iv_direction(value: str | None) -> str:
     direction = (value or "").strip().lower()
-    if direction not in {"up", "down"}:
-        raise ValueError("iv_direction must be either 'up' or 'down'")
+    if direction not in {"up", "down", "unknown"}:
+        raise ValueError("iv_direction must be 'up', 'down', or 'unknown'")
     return direction
 
 

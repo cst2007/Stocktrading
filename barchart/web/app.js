@@ -121,9 +121,9 @@ async function handleProcess(pair, input, ivDirectionSelect, button, insightsTog
   }
 
   const ivDirection = ivDirectionSelect?.value?.trim().toLowerCase();
-  if (!ivDirection || !['up', 'down'].includes(ivDirection)) {
+  if (!ivDirection || !['up', 'down', 'unknown'].includes(ivDirection)) {
     ivDirectionSelect?.focus();
-    setStatus('Select whether implied volatility is trending up or down.', true);
+    setStatus('Select whether implied volatility is trending up, down, or unknown.', true);
     return;
   }
 
