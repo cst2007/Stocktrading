@@ -19,6 +19,28 @@ function formatTimestamp(value) {
   return date.toLocaleString();
 }
 
+function buildRelativeUrl(targetFile) {
+  const { origin, pathname } = window.location;
+  let basePath = pathname;
+
+  if (!basePath.endsWith('/')) {
+    const lastSlashIndex = basePath.lastIndexOf('/');
+    const trailingSegment = basePath.slice(lastSlashIndex + 1);
+
+    if (trailingSegment && !trailingSegment.includes('.')) {
+      basePath = `${basePath}/`;
+    } else {
+      basePath = basePath.slice(0, lastSlashIndex + 1);
+    }
+  }
+
+  if (!basePath.endsWith('/')) {
+    basePath += '/';
+  }
+
+  return `${origin}${basePath}${targetFile}`;
+}
+
 function renderPairs(pairs) {
   pairsContainer.innerHTML = '';
   if (!pairs || pairs.length === 0) {
@@ -99,7 +121,8 @@ async function handleProcess(pair, input, button) {
       }),
     );
 
-    window.location.href = 'results.html';
+    const resultsUrl = buildRelativeUrl('results.html');
+    window.location.assign(resultsUrl);
     return;
   } catch (error) {
     console.error(error);
