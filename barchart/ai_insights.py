@@ -47,6 +47,7 @@ PROMPT_TEMPLATE = textwrap.dedent(
       Average Put Delta: {avg_put_Delta}
       Net Vanna: {net_Vanna}
       Net GEX: {net_GEX}
+      Total Net DEX: {net_DEX_total}
       Vanna/GEX Ratio: {Vanna_GEX_Ratio}
       Vanna/GEX Call Ratio: {Vanna_GEX_Call_Ratio}
       Strike Range: {min_strike} - {max_strike}
@@ -107,6 +108,7 @@ class InsightMetrics:
     avg_put_Delta: float
     net_Vanna: float
     net_GEX: float
+    net_DEX_total: float
     Vanna_GEX_Ratio: float | None
     Vanna_GEX_Call_Ratio: float | None
     min_strike: float
@@ -147,6 +149,10 @@ def summarize_metrics(
 
     net_vanna = float(derived_df["net_Vanna"].fillna(0).sum())
     net_gex = float(derived_df["net_GEX"].fillna(0).sum())
+    if "net_DEX" in derived_df:
+        net_dex_total = float(derived_df["net_DEX"].fillna(0).sum())
+    else:
+        net_dex_total = float(derived_df.attrs.get("total_net_DEX", 0.0))
 
     with pd.option_context("mode.use_inf_as_na", True):
         vanna_gex_ratio = net_vanna / net_gex if net_gex else None
@@ -174,6 +180,7 @@ def summarize_metrics(
         avg_put_Delta=avg_put_delta,
         net_Vanna=round(net_vanna, 2),
         net_GEX=round(net_gex, 2),
+        net_DEX_total=round(net_dex_total, 2),
         Vanna_GEX_Ratio=round(vanna_gex_ratio, 2) if vanna_gex_ratio is not None else None,
         Vanna_GEX_Call_Ratio=
         round(vanna_gex_call_ratio, 2) if vanna_gex_call_ratio is not None else None,

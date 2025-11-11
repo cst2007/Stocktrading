@@ -15,6 +15,9 @@ DERIVED_CSV_HEADER = [
     "call_GEX",
     "puts_GEX",
     "net_GEX",
+    "call_DEX",
+    "puts_DEX",
+    "net_DEX",
     "call_IV",
     "puts_IV",
     "call_OI_IV",
@@ -48,6 +51,10 @@ def compute_derived_metrics(
         "call_gex",
         "puts_gex",
         "net_gex",
+        "call_open_interest",
+        "puts_open_interest",
+        "call_delta",
+        "puts_delta",
         "call_iv",
         "puts_iv",
         "call_oi_iv",
@@ -70,12 +77,27 @@ def compute_derived_metrics(
             "call_GEX": unified_df["call_gex"].astype(float),
             "puts_GEX": unified_df["puts_gex"].astype(float),
             "net_GEX": unified_df["net_gex"].astype(float),
+            "call_DEX": (
+                unified_df["call_delta"].astype(float)
+                * unified_df["call_open_interest"].astype(float)
+                * 100
+            ),
+            "puts_DEX": (
+                unified_df["puts_delta"].astype(float)
+                * unified_df["puts_open_interest"].astype(float)
+                * 100
+            ),
             "call_IV": unified_df["call_iv"].astype(float).round(1),
             "puts_IV": unified_df["puts_iv"].astype(float).round(1),
             "call_OI_IV": unified_df["call_oi_iv"].astype(float).round(1),
             "puts_OI_IV": unified_df["puts_oi_iv"].astype(float).round(1),
         }
     )
+
+    metrics["net_DEX"] = metrics["call_DEX"] + metrics["puts_DEX"]
+
+    for column in ("call_DEX", "puts_DEX", "net_DEX"):
+        metrics[column] = metrics[column].round(1)
 
     net_gex_denom = metrics["net_GEX"].replace({0: pd.NA})
     call_gex_denom = metrics["call_GEX"].replace({0: pd.NA})
@@ -99,6 +121,8 @@ def compute_derived_metrics(
         if net_count:
             net_top = metrics["net_GEX"].nlargest(min(3, net_count)).index
             metrics.loc[net_top, "net_gex_highlight"] = "highlight"
+
+    metrics.attrs["total_net_DEX"] = float(metrics["net_DEX"].fillna(0).sum())
 
     return metrics[DERIVED_CSV_HEADER]
 
