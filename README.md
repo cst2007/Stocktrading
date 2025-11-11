@@ -10,7 +10,7 @@ It ingests Barchart-format options chain CSV files, computes aggregate Vanna and
   the filename convention (`$<ticker>-options-exp-YYYY-MM-DD-...csv`).
 - Clean and normalize greeks, open interest, and price columns.
 - Compute total and side-specific (calls vs puts) GEX and Vanna exposure.
-- Export JSON summaries, per-strike CSV tables, and optional PNG curve charts for each input file.
+- Export JSON summaries, per-strike CSV tables, optional PNG curve charts, and OpenAI-powered insight JSON for each input file.
 - Command line interface for ad-hoc runs or batch processing directories.
 
 ## Local Setup
@@ -42,6 +42,22 @@ It ingests Barchart-format options chain CSV files, computes aggregate Vanna and
    ```
 
    The requirements file installs the CLI, analyzer core, and optional web UI dependencies.
+
+5. **Configure OpenAI access (optional but required for Phase 2 insights)**
+
+   Set the environment variables expected by the AI insight subsystem before running the web server or pair processor:
+
+   ```bash
+   export OPENAI_API_KEY="sk-your-api-key"
+   # Optional overrides
+   export OPENAI_MODEL="gpt-4o-mini"
+   export OPENAI_BASE_URL="https://api.openai.com/v1"
+   export OPENAI_ORG="org_your_org"
+   ```
+
+   If the API key is not supplied, insight generation is skipped and a warning is logged. You can also
+   store the API key locally through the web UI by visiting the **OpenAI configuration** page (linked
+   from the main processing screen) once the server is running.
 
 5. **(Optional) Upgrade matplotlib dependencies for improved chart rendering**
 
@@ -79,7 +95,12 @@ process the sample CSV files and write outputs to `./output/`.
 
    Navigate to <http://127.0.0.1:8000> to stage pairs of CSVs, supply a spot price, and trigger analysis runs
    from the browser. Processed files are automatically moved to an internal `processed/` directory to avoid
-   duplicate work.
+   duplicate work. Use the **Request OpenAI AI insight** toggle on the processing card to include the
+   Phase&nbsp;2 AI step. Configure the API key ahead of time via environment variables or the OpenAI
+   configuration page at <http://127.0.0.1:8000/config.html>.
+
+   When an API key is configured, the processing flow also writes structured AI insights next to the derived
+   metrics output under `output/derived/insights/`.
 
 ## Usage
 

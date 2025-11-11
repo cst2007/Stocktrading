@@ -2,9 +2,26 @@ const pairsContainer = document.getElementById('pairs-container');
 const statusElement = document.getElementById('messages');
 const template = document.getElementById('pair-card-template');
 
+let openAiConfigured = false;
+
 function setStatus(message, isError = false) {
   statusElement.textContent = message;
   statusElement.classList.toggle('error', Boolean(isError));
+}
+
+async function loadOpenAIStatus() {
+  try {
+    const response = await fetch('/api/config/openai');
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    const payload = await response.json();
+    openAiConfigured = Boolean(payload.has_api_key);
+  } catch (error) {
+    console.error('Unable to determine OpenAI configuration status:', error);
+    openAiConfigured = false;
+  }
 }
 
 function formatTimestamp(value) {
@@ -62,16 +79,32 @@ function renderPairs(pairs) {
 
     const processButton = card.querySelector('.process-button');
     const input = card.querySelector('.spot-input');
+    const insightsToggle = card.querySelector('.insights-checkbox');
+    const insightsNote = card.querySelector('.insights-note');
+
+    if (insightsToggle) {
+      insightsToggle.checked = false;
+    }
+
+    if (insightsNote) {
+      if (openAiConfigured) {
+        insightsNote.textContent = 'AI insights will be requested when this option is checked.';
+        insightsNote.classList.remove('warning');
+      } else {
+        insightsNote.textContent = 'Configure your OpenAI API key before enabling AI insights.';
+        insightsNote.classList.add('warning');
+      }
+    }
 
     processButton.addEventListener('click', () => {
-      handleProcess(pair, input, processButton);
+      handleProcess(pair, input, processButton, insightsToggle);
     });
 
     pairsContainer.appendChild(fragment);
   });
 }
 
-async function handleProcess(pair, input, button) {
+async function handleProcess(pair, input, button, insightsToggle) {
   const value = input.value.trim();
   if (!value) {
     input.focus();
@@ -86,6 +119,8 @@ async function handleProcess(pair, input, button) {
     return;
   }
 
+  const generateInsights = Boolean(insightsToggle?.checked);
+
   button.disabled = true;
   button.textContent = 'Processing…';
   setStatus(`Processing ${pair.label || pair.id}…`);
@@ -99,6 +134,7 @@ async function handleProcess(pair, input, button) {
       body: JSON.stringify({
         pair_id: pair.id,
         spot_price: spotPrice,
+        generate_insights: generateInsights,
       }),
     });
 
@@ -118,6 +154,7 @@ async function handleProcess(pair, input, button) {
         spotPrice,
         processedAt: new Date().toISOString(),
         result,
+        generateInsights,
       }),
     );
 
@@ -147,7 +184,11 @@ async function loadPairs() {
     if (!payload.pairs || payload.pairs.length === 0) {
       setStatus('No unprocessed file pairs were found. Drop new CSVs into the input folder to begin.');
     } else {
-      setStatus('Select a pair and provide the spot price to process the files.');
+      let message = 'Select a pair and provide the spot price to process the files.';
+      if (!openAiConfigured) {
+        message += ' Configure your OpenAI API key before enabling AI insights.';
+      }
+      setStatus(message);
     }
   } catch (error) {
     console.error(error);
@@ -156,5 +197,11 @@ async function loadPairs() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  loadPairs();
+  (async () => {
+    await loadOpenAIStatus();
+    await loadPairs();
+  })().catch((error) => {
+    console.error('Initialisation failed:', error);
+    setStatus(`Unable to initialise the page: ${error.message}`, true);
+  });
 });

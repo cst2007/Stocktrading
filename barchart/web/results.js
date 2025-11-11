@@ -10,7 +10,13 @@ const timestampElement = document.getElementById('result-timestamp');
 const spotElement = document.getElementById('result-spot');
 const combinedElement = document.getElementById('result-combined');
 const derivedElement = document.getElementById('result-derived');
+const insightJsonElement = document.getElementById('result-insight-json');
 const movedListElement = document.getElementById('result-moved-list');
+const insightSection = document.getElementById('result-insight');
+const insightModelElement = document.getElementById('result-insight-model');
+const insightLatencyElement = document.getElementById('result-insight-latency');
+const insightPromptElement = document.getElementById('result-insight-prompt');
+const insightResponseElement = document.getElementById('result-insight-response');
 
 function setStatus(message, isError = false) {
   statusElement.textContent = message;
@@ -60,6 +66,22 @@ function renderOverview(data) {
   const result = data.result || {};
   combinedElement.textContent = result.combined_csv || 'Unavailable';
   derivedElement.textContent = result.derived_csv || 'Unavailable';
+  insightJsonElement.textContent = result.insights?.insight_json || 'Unavailable';
+
+  if (result.insights) {
+    insightSection.hidden = false;
+    insightModelElement.textContent = result.insights.model || 'Unknown';
+    const latency = Number(result.insights.latency_ms);
+    insightLatencyElement.textContent = Number.isFinite(latency) ? latency.toFixed(2) : 'Unknown';
+    insightPromptElement.textContent = result.insights.prompt || 'Unavailable';
+    insightResponseElement.textContent = result.insights.response || 'Unavailable';
+  } else {
+    insightSection.hidden = true;
+    insightModelElement.textContent = '';
+    insightLatencyElement.textContent = '';
+    insightPromptElement.textContent = '';
+    insightResponseElement.textContent = '';
+  }
 
   movedListElement.innerHTML = '';
   const movedFiles = Array.isArray(result.moved_files) ? result.moved_files : [];

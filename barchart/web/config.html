@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenAI Configuration</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container config-container">
+      <header class="page-header">
+        <h1>OpenAI configuration</h1>
+        <p>Store the API credentials used to request AI insights during processing.</p>
+        <p class="page-subtitle">
+          <a class="config-link" href="index.html">&#8592; Back to pair processing</a>
+        </p>
+      </header>
+
+      <section id="config-status" class="status" role="status" aria-live="polite">
+        Loading configuration…
+      </section>
+
+      <form id="openai-form" class="config-form" hidden>
+        <label class="config-label" for="api-key">OpenAI API key</label>
+        <input
+          id="api-key"
+          name="api-key"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          class="config-input"
+          placeholder="sk-..."
+          aria-describedby="config-help"
+        />
+        <p id="config-help" class="config-hint">
+          The key is stored locally on this machine and applied to all insight requests.
+        </p>
+        <div class="config-actions">
+          <button type="submit" class="process-button">Save API key</button>
+          <button type="button" id="clear-key" class="secondary-button">Clear stored key</button>
+        </div>
+      </form>
+    </main>
+
+    <script src="config.js" defer></script>
+  </body>
+</html>
