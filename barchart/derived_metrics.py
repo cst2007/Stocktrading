@@ -179,7 +179,11 @@ def compute_derived_metrics(
         metrics[column] = metrics[column].round(1)
 
     metrics["IVxOI"] = (
-        metrics[["Call_IVxOI", "Put_IVxOI"]].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+        metrics[["Call_IVxOI", "Put_IVxOI"]]
+        .apply(pd.to_numeric, errors="coerce")
+        .fillna(0)
+        .sum(axis=1)
+        .round(1)
     )
 
     call_gex_denom = metrics["Call_GEX"].replace({0: pd.NA})
