@@ -86,18 +86,21 @@ async function handleProcess(pair, input, button) {
     }
 
     const result = payload.result || {};
-    const moved = Array.isArray(result.moved_files) ? result.moved_files.join(', ') : 'unknown';
-    const summaryList = Array.isArray(result.summaries)
-      ? result.summaries
-          .map((item) => `${item.ticker} ${item.expiry}: ${item.summary_json}`)
-          .join('; ')
-      : 'none';
 
-    setStatus(
-      `Processed ${pair.label || pair.id}. Combined CSV: ${result.combined_csv}. Moved files: ${moved}. Summaries: ${summaryList}.`,
+    const fallbackLabel = [pair.ticker, pair.expiry].filter(Boolean).join(' ').trim();
+
+    sessionStorage.setItem(
+      'latestProcessResult',
+      JSON.stringify({
+        pairDisplay: pair.label || fallbackLabel || pair.id,
+        spotPrice,
+        processedAt: new Date().toISOString(),
+        result,
+      }),
     );
 
-    await loadPairs();
+    window.location.href = 'results.html';
+    return;
   } catch (error) {
     console.error(error);
     setStatus(`Failed to process ${pair.label || pair.id}: ${error.message}`, true);
