@@ -80,14 +80,19 @@ function buildRelativeUrl(targetFile) {
 }
 
 function renderOverview(data) {
+  const result = data.result || {};
   overviewSection.hidden = false;
   pairElement.textContent = data.pairDisplay || 'Unknown pair';
   timestampElement.textContent = formatTimestamp(data.processedAt);
   spotElement.textContent = Number.isFinite(data.spotPrice) ? data.spotPrice : 'Unknown';
-  const directionValue = data.ivDirection || result.iv_direction || '';
-  ivDirectionElement.textContent = directionValue || 'Unknown';
+  const directionValue = String(data.ivDirection || result.iv_direction || '').toLowerCase();
+  const directionLabels = {
+    up: 'Up',
+    down: 'Down',
+    unknown: 'Unknown',
+  };
+  ivDirectionElement.textContent = directionLabels[directionValue] || 'Unknown';
 
-  const result = data.result || {};
   renderFileLink(combinedElement, result.combined_csv, result.combined_csv_url);
   renderFileLink(derivedElement, result.derived_csv, result.derived_csv_url);
   renderFileLink(

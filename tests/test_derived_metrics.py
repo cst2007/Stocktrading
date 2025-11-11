@@ -100,6 +100,21 @@ def test_directional_bias_switches_with_iv_direction():
     assert vol_drift_down["Regime"] == "Vol Drift Down"
 
 
+def test_unknown_direction_is_preserved_and_neutral():
+    df = _build_sample_frame()
+    metrics_unknown = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+        iv_direction="unknown",
+    )
+
+    sample_row = metrics_unknown.loc[metrics_unknown["Strike"] == 102].iloc[0]
+    assert sample_row["IV_Direction"] == "unknown"
+    assert sample_row["Regime"] == "Vol Drift Up"
+    assert sample_row["Dealer_Bias"] == "Neutral / Mean Reversion"
+
+
 def test_top5_column_only_populated_for_top_five():
     df = _build_sample_frame()
     metrics = compute_derived_metrics(

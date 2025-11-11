@@ -199,9 +199,9 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
             return
 
         iv_direction = str(payload.get("iv_direction", "")).strip().lower()
-        if iv_direction not in {"up", "down"}:
+        if iv_direction not in {"up", "down", "unknown"}:
             self._send_json(
-                {"error": "'iv_direction' must be either 'up' or 'down'"},
+                {"error": "'iv_direction' must be 'up', 'down', or 'unknown'"},
                 status=HTTPStatus.BAD_REQUEST,
             )
             return

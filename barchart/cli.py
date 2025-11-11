@@ -40,7 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--iv-direction",
-        choices=["up", "down"],
+        choices=["up", "down", "unknown"],
         required=True,
         help="Observed implied volatility trend for the current session.",
     )
