@@ -211,9 +211,49 @@ def _extract_message_content(response: Any) -> str:
     """Return the text body from a Chat Completions response."""
 
     try:
-        return response.choices[0].message.content or ""
+        message = response.choices[0].message
     except (AttributeError, IndexError, KeyError):  # pragma: no cover - defensive guard
         return ""
+
+    content = getattr(message, "content", None)
+
+    if isinstance(content, str):
+        return content
+
+    parts: list[str] = []
+
+    if isinstance(content, (list, tuple)):
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+                continue
+
+            text = None
+            if hasattr(part, "text"):
+                text = getattr(part, "text")
+            elif isinstance(part, Mapping):
+                candidate = part.get("text")
+                if candidate is not None:
+                    text = candidate
+
+            if text:
+                parts.append(str(text))
+
+    elif isinstance(message, Mapping):
+        value = message.get("content")
+        if isinstance(value, str):
+            return value
+        if isinstance(value, (list, tuple)):
+            for part in value:
+                if isinstance(part, str):
+                    parts.append(part)
+                elif isinstance(part, Mapping) and part.get("text"):
+                    parts.append(str(part["text"]))
+
+    if parts:
+        return "\n".join(part.strip() for part in parts if part.strip())
+
+    return ""
 
 
 def _parse_model_response(text: str) -> Dict[str, Any]:
