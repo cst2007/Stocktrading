@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Processing Results</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="container results-container">
+      <header class="page-header">
+        <h1>Processing Results</h1>
+        <p>Review the files generated from the most recent processing run.</p>
+      </header>
+
+      <section id="results-status" class="status" role="status" aria-live="polite">
+        Loading results…
+      </section>
+
+      <section id="result-overview" class="result-overview" hidden>
+        <h2>Overview</h2>
+        <dl class="result-metadata">
+          <div>
+            <dt>Pair</dt>
+            <dd id="result-pair"></dd>
+          </div>
+          <div>
+            <dt>Processed</dt>
+            <dd id="result-timestamp"></dd>
+          </div>
+          <div>
+            <dt>Spot price</dt>
+            <dd id="result-spot"></dd>
+          </div>
+          <div>
+            <dt>Combined CSV</dt>
+            <dd id="result-combined"></dd>
+          </div>
+          <div>
+            <dt>Derived CSV</dt>
+            <dd id="result-derived"></dd>
+          </div>
+        </dl>
+
+        <div class="result-moved">
+          <h3>Moved files</h3>
+          <ul id="result-moved-list"></ul>
+        </div>
+      </section>
+
+      <section id="result-tabs" class="result-tabs" hidden>
+        <h2>File summaries</h2>
+        <div class="tabs" role="tablist" aria-label="Processed files"></div>
+        <div class="tab-panels"></div>
+      </section>
+
+      <div class="results-actions">
+        <button type="button" id="back-button" class="back-button">Back to file list</button>
+      </div>
+    </main>
+
+    <script src="results.js" defer></script>
+  </body>
+</html>
