@@ -15,6 +15,10 @@ DERIVED_CSV_HEADER = [
     "call_GEX",
     "puts_GEX",
     "net_GEX",
+    "call_IV",
+    "puts_IV",
+    "call_OI_IV",
+    "puts_OI_IV",
     "Vanna_GEX_Ratio",
     "Vanna_GEX_Call_Ratio",
     "call_vanna_highlight",
@@ -37,6 +41,25 @@ def compute_derived_metrics(
 
     timestamp_str = _format_timestamp(calculation_time)
 
+    required_columns = {
+        "call_vanna",
+        "puts_vanna",
+        "net_vanna",
+        "call_gex",
+        "puts_gex",
+        "net_gex",
+        "call_iv",
+        "puts_iv",
+        "call_oi_iv",
+        "puts_oi_iv",
+    }
+    missing_columns = required_columns.difference(unified_df.columns)
+    if missing_columns:
+        raise KeyError(
+            "Unified dataset missing expected columns: "
+            + ", ".join(sorted(missing_columns))
+        )
+
     metrics = pd.DataFrame(
         {
             "Strike": unified_df["Strike"].astype(float),
@@ -47,6 +70,10 @@ def compute_derived_metrics(
             "call_GEX": unified_df["call_gex"].astype(float),
             "puts_GEX": unified_df["puts_gex"].astype(float),
             "net_GEX": unified_df["net_gex"].astype(float),
+            "call_IV": unified_df["call_iv"].astype(float).round(1),
+            "puts_IV": unified_df["puts_iv"].astype(float).round(1),
+            "call_OI_IV": unified_df["call_oi_iv"].astype(float).round(1),
+            "puts_OI_IV": unified_df["puts_oi_iv"].astype(float).round(1),
         }
     )
 
