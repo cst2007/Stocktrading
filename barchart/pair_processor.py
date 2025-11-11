@@ -149,6 +149,7 @@ def process_pair(
     pair: OptionFilePair,
     *,
     spot_price: float,
+    iv_direction: str,
     output_directory: Path,
     processed_directory: Path,
     contract_multiplier: float = 100.0,
@@ -181,7 +182,12 @@ def process_pair(
     derived_dir = output_directory / "derived"
     derived_dir.mkdir(parents=True, exist_ok=True)
     calculation_time = datetime.now(timezone.utc)
-    derived_df = compute_derived_metrics(combined_df, calculation_time=calculation_time)
+    derived_df = compute_derived_metrics(
+        combined_df,
+        calculation_time=calculation_time,
+        spot_price=spot_price,
+        iv_direction=iv_direction,
+    )
     safe_ticker = pair.ticker.replace("/", "-") or "unknown"
     safe_expiry = (
         pair.expiry.replace("/", "-") if pair.expiry != "UNKNOWN" else "unknown"
@@ -215,6 +221,7 @@ def process_pair(
         contract_multiplier=contract_multiplier,
         create_charts=create_charts,
         spot_price=float(spot_price),
+        iv_direction=iv_direction,
     )
 
     results = analyzer.process_path(combined_path, analyzer_output_dir)
@@ -232,6 +239,7 @@ def process_pair(
         "derived_csv": str(derived_path),
         "summaries": summaries,
         "insights": insights_info,
+        "iv_direction": iv_direction,
     }
 
 

@@ -39,6 +39,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Underlying spot price to use in exposure calculations.",
     )
     parser.add_argument(
+        "--iv-direction",
+        choices=["up", "down"],
+        required=True,
+        help="Observed implied volatility trend for the current session.",
+    )
+    parser.add_argument(
         "--no-charts",
         action="store_true",
         help="Disable generation of PNG charts for strike curves.",
@@ -68,6 +74,7 @@ def run_cli(args: Iterable[str] | None = None) -> List[str]:
         contract_multiplier=parsed.contract_multiplier,
         create_charts=not parsed.no_charts,
         spot_price=parsed.spot_price,
+        iv_direction=parsed.iv_direction,
     )
 
     input_path = Path(parsed.input)

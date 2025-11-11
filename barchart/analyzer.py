@@ -21,6 +21,55 @@ from .database import AnalyticsDatabase
 logger = logging.getLogger(__name__)
 
 
+def _normalize_iv_direction(value: str | None) -> str:
+    direction = (value or "").strip().lower()
+    if direction not in {"up", "down"}:
+        raise ValueError("iv_direction must be either 'up' or 'down'")
+    return direction
+
+
+def _classify_regime(call_ratio: float | None, put_ratio: float | None, iv_direction: str) -> str:
+    def _lt(val: float | None, threshold: float) -> bool:
+        return val is not None and not pd.isna(val) and val < threshold
+
+    def _gt(val: float | None, threshold: float) -> bool:
+        return val is not None and not pd.isna(val) and val > threshold
+
+    if _lt(call_ratio, 1) and _lt(put_ratio, 1):
+        return "Gamma Pin"
+    if _gt(call_ratio, 2) and iv_direction == "up":
+        return "Pre-Earnings Fade"
+    if _gt(put_ratio, 2) and iv_direction == "down":
+        return "Post-Earnings Vanna Rally"
+    if _gt(call_ratio, 2) and _lt(put_ratio, 1):
+        return "Vol Drift Down"
+    if _lt(call_ratio, 1) and _gt(put_ratio, 2):
+        return "Vol Drift Up"
+    return "Transition Zone"
+
+
+def _score_energy(ivxoi: float | None, median_ivxoi: float | None) -> str:
+    if ivxoi is None or pd.isna(ivxoi) or median_ivxoi is None or pd.isna(median_ivxoi):
+        return "Low"
+    if median_ivxoi <= 0:
+        return "High" if ivxoi > 0 else "Low"
+    if ivxoi > 1.5 * median_ivxoi:
+        return "High"
+    if ivxoi > 0.8 * median_ivxoi:
+        return "Moderate"
+    return "Low"
+
+
+def _dealer_bias(call_ratio: float | None, put_ratio: float | None, iv_direction: str) -> str:
+    call_gt = call_ratio is not None and not pd.isna(call_ratio) and call_ratio > 2
+    put_gt = put_ratio is not None and not pd.isna(put_ratio) and put_ratio > 2
+    if put_gt and iv_direction == "down":
+        return "Dealer Buying → Bullish Drift"
+    if call_gt and iv_direction == "down":
+        return "Dealer Selling → Bearish Fade"
+    return "Neutral / Mean Reversion"
+
+
 @dataclass
 class ProcessingResult:
     """Container for the metrics generated from a Barchart CSV."""
@@ -38,6 +87,18 @@ class ProcessingResult:
     source_path: Path
     output_directory: Path
     strike_type_metrics: List["StrikeTypeMetric"]
+    call_vanna_ratio_by_strike: Dict[float, float | None]
+    put_vanna_ratio_by_strike: Dict[float, float | None]
+    vanna_gex_total_by_strike: Dict[float, float | None]
+    energy_score_by_strike: Dict[float, str]
+    regime_by_strike: Dict[float, str]
+    dealer_bias_by_strike: Dict[float, str]
+    ivxoi_by_strike: Dict[float, float | None]
+    rel_dist_by_strike: Dict[float, float | None]
+    top5_bias_summary: Dict[float, str]
+    median_ivxoi: float | None
+    iv_direction: str
+    strike_summary_df: pd.DataFrame
 
 
 @dataclass
@@ -94,10 +155,12 @@ class BarchartOptionsAnalyzer:
         contract_multiplier: float = 100.0,
         create_charts: bool = True,
         spot_price: float | None = None,
+        iv_direction: str = "down",
     ) -> None:
         self.contract_multiplier = contract_multiplier
         self.create_charts = create_charts
         self.spot_price = spot_price
+        self.iv_direction = _normalize_iv_direction(iv_direction)
 
     # ------------------------------------------------------------------
     # Public API
@@ -141,6 +204,22 @@ class BarchartOptionsAnalyzer:
         df = self._preprocess(df)
         metrics = self._compute_metrics(df)
 
+        summary_df: pd.DataFrame = metrics["summary_by_strike"].copy()
+
+        def _float_dict(series: pd.Series) -> Dict[float, float | None]:
+            output: Dict[float, float | None] = {}
+            for idx, value in series.items():
+                key = float(idx)
+                output[key] = None if pd.isna(value) else float(value)
+            return output
+
+        def _string_dict(series: pd.Series) -> Dict[float, str]:
+            output: Dict[float, str] = {}
+            for idx, value in series.items():
+                if isinstance(value, str) and value:
+                    output[float(idx)] = value
+            return output
+
         result = ProcessingResult(
             ticker=ticker,
             expiry=expiry,
@@ -155,6 +234,18 @@ class BarchartOptionsAnalyzer:
             source_path=path,
             output_directory=output_directory,
             strike_type_metrics=metrics["strike_type_metrics"],
+            call_vanna_ratio_by_strike=_float_dict(summary_df["Call_Vanna_Ratio"]),
+            put_vanna_ratio_by_strike=_float_dict(summary_df["Put_Vanna_Ratio"]),
+            vanna_gex_total_by_strike=_float_dict(summary_df["Vanna_GEX_Total"]),
+            energy_score_by_strike={float(idx): str(value) for idx, value in summary_df["Energy_Score"].items()},
+            regime_by_strike={float(idx): str(value) for idx, value in summary_df["Regime"].items()},
+            dealer_bias_by_strike={float(idx): str(value) for idx, value in summary_df["Dealer_Bias"].items()},
+            ivxoi_by_strike=_float_dict(summary_df["IVxOI"]),
+            rel_dist_by_strike=_float_dict(summary_df["Rel_Dist"]),
+            top5_bias_summary=_string_dict(summary_df["Top5_Regime_Energy_Bias"]),
+            median_ivxoi=metrics["median_ivxoi"],
+            iv_direction=metrics["iv_direction"],
+            strike_summary_df=summary_df,
         )
 
         self._write_outputs(result)
@@ -536,28 +627,117 @@ class BarchartOptionsAnalyzer:
         gex_by_strike = df.groupby("strike")["gex"].sum().sort_index()
         vanna_by_strike = df.groupby("strike")["vanna"].sum().sort_index()
 
-        grouped = (
-            df.groupby(["strike", "option_type"])
-            .agg(
-                next_gex=("gex", "sum"),
-                vanna=("vanna", "sum"),
-                iv=("iv", "mean"),
-            )
-            .reset_index()
-        )
+        df["ivxoi"] = df["iv"].fillna(0) * df["open_interest"].fillna(0)
+
+        agg_kwargs = {
+            "gex_sum": ("gex", "sum"),
+            "vanna_sum": ("vanna", "sum"),
+            "iv_mean": ("iv", "mean"),
+            "open_interest_sum": ("open_interest", "sum"),
+            "ivxoi_sum": ("ivxoi", "sum"),
+        }
+        if "volume" in df.columns:
+            agg_kwargs["volume_sum"] = ("volume", "sum")
+
+        grouped = df.groupby(["strike", "option_type"]).agg(**agg_kwargs).reset_index()
 
         strike_type_metrics: List[StrikeTypeMetric] = []
         for _, row in grouped.iterrows():
-            iv_value = float(row["iv"]) if not pd.isna(row["iv"]) else None
+            iv_value = float(row["iv_mean"]) if not pd.isna(row["iv_mean"]) else None
             strike_type_metrics.append(
                 StrikeTypeMetric(
                     strike=float(row["strike"]),
                     option_type=str(row["option_type"]),
-                    next_gex=float(row["next_gex"]),
-                    vanna=float(row["vanna"]),
+                    next_gex=float(row["gex_sum"]),
+                    vanna=float(row["vanna_sum"]),
                     iv=iv_value,
                 )
             )
+
+        strike_index = sorted({float(value) for value in df["strike"].unique()})
+        summary = pd.DataFrame(index=pd.Index(strike_index, name="strike"))
+
+        call_stats = grouped[grouped["option_type"] == "call"].set_index("strike")
+        put_stats = grouped[grouped["option_type"] == "put"].set_index("strike")
+
+        def _side_series(stats: pd.DataFrame, column: str) -> pd.Series:
+            if column not in stats.columns:
+                return pd.Series(0.0, index=summary.index, dtype="Float64")
+            return (
+                stats[column]
+                .reindex(summary.index, fill_value=0.0)
+                .astype(float)
+            )
+
+        summary["Call_GEX"] = _side_series(call_stats, "gex_sum")
+        summary["Put_GEX"] = _side_series(put_stats, "gex_sum")
+        summary["Call_Vanna"] = _side_series(call_stats, "vanna_sum")
+        summary["Put_Vanna"] = _side_series(put_stats, "vanna_sum")
+        summary["Call_IVxOI"] = _side_series(call_stats, "ivxoi_sum")
+        summary["Put_IVxOI"] = _side_series(put_stats, "ivxoi_sum")
+        summary["Call_Volume"] = _side_series(call_stats, "volume_sum")
+        summary["Put_Volume"] = _side_series(put_stats, "volume_sum")
+        summary["Call_OI"] = _side_series(call_stats, "open_interest_sum")
+        summary["Put_OI"] = _side_series(put_stats, "open_interest_sum")
+
+        summary["Net_GEX"] = summary["Call_GEX"] + summary["Put_GEX"]
+        summary["Net_Vanna"] = summary["Call_Vanna"] + summary["Put_Vanna"]
+        summary["IVxOI"] = summary["Call_IVxOI"] + summary["Put_IVxOI"]
+
+        call_ratio_denom = summary["Call_GEX"].replace({0: pd.NA})
+        put_ratio_denom = summary["Put_GEX"].replace({0: pd.NA})
+        total_ratio_denom = summary["Net_GEX"].replace({0: pd.NA})
+
+        summary["Call_Vanna_Ratio"] = (summary["Call_Vanna"] / call_ratio_denom).astype("Float64")
+        summary["Put_Vanna_Ratio"] = (summary["Put_Vanna"] / put_ratio_denom).astype("Float64")
+        summary["Vanna_GEX_Total"] = (summary["Net_Vanna"] / total_ratio_denom).astype("Float64")
+
+        median_ivxoi = (
+            float(summary["IVxOI"].median(skipna=True))
+            if not summary["IVxOI"].dropna().empty
+            else None
+        )
+        summary["Median_IVxOI"] = median_ivxoi
+
+        iv_direction = self.iv_direction
+        summary["Energy_Score"] = summary["IVxOI"].apply(_score_energy, median_ivxoi=median_ivxoi)
+        summary["Regime"] = summary.apply(
+            lambda row: _classify_regime(row["Call_Vanna_Ratio"], row["Put_Vanna_Ratio"], iv_direction),
+            axis=1,
+        )
+        summary["Dealer_Bias"] = summary.apply(
+            lambda row: _dealer_bias(row["Call_Vanna_Ratio"], row["Put_Vanna_Ratio"], iv_direction),
+            axis=1,
+        )
+
+        spot_value = self.spot_price
+        if spot_value is None and "underlying_price" in df.columns:
+            spot_series = pd.to_numeric(df["underlying_price"], errors="coerce").dropna()
+            if not spot_series.empty:
+                spot_value = float(spot_series.mean())
+        if spot_value is not None and spot_value > 0:
+            summary["Rel_Dist"] = ((summary.index - spot_value).abs() / spot_value).round(4)
+        else:
+            summary["Rel_Dist"] = pd.NA
+
+        summary["Top5_Regime_Energy_Bias"] = ""
+        activity = summary["Call_Volume"] + summary["Put_Volume"]
+        if activity.isna().all() or activity.sum() == 0:
+            activity = summary["Call_OI"] + summary["Put_OI"]
+
+        top_n = min(5, len(summary))
+        if top_n:
+            top_indices = activity.fillna(0).astype(float).nlargest(top_n).index
+            for strike in top_indices:
+                regime = summary.at[strike, "Regime"]
+                energy = summary.at[strike, "Energy_Score"]
+                bias = summary.at[strike, "Dealer_Bias"]
+                if pd.isna(strike):
+                    continue
+                strike_str = str(int(strike)) if float(strike).is_integer() else f"{float(strike):.2f}".rstrip("0").rstrip(".")
+                summary.at[strike, "Top5_Regime_Energy_Bias"] = (
+                    f"{strike_str}: {regime} | {energy} | {bias}"
+                )
 
         return {
             "total_gex": float(gex_by_strike.sum()),
@@ -569,6 +749,9 @@ class BarchartOptionsAnalyzer:
             "gex_by_strike": gex_by_strike.to_dict(),
             "vanna_by_strike": vanna_by_strike.to_dict(),
             "strike_type_metrics": strike_type_metrics,
+            "summary_by_strike": summary,
+            "median_ivxoi": median_ivxoi,
+            "iv_direction": iv_direction,
         }
 
     def _write_outputs(self, result: ProcessingResult) -> None:
@@ -592,18 +775,40 @@ class BarchartOptionsAnalyzer:
             "gex_by_strike": result.gex_by_strike,
             "vanna_by_strike": result.vanna_by_strike,
             "source_path": str(result.source_path),
+            "call_vanna_ratio_by_strike": result.call_vanna_ratio_by_strike,
+            "put_vanna_ratio_by_strike": result.put_vanna_ratio_by_strike,
+            "vanna_gex_total_by_strike": result.vanna_gex_total_by_strike,
+            "energy_score_by_strike": result.energy_score_by_strike,
+            "regime_by_strike": result.regime_by_strike,
+            "dealer_bias_by_strike": result.dealer_bias_by_strike,
+            "ivxoi_by_strike": result.ivxoi_by_strike,
+            "rel_dist_by_strike": result.rel_dist_by_strike,
+            "top5_bias_summary": result.top5_bias_summary,
+            "median_ivxoi": result.median_ivxoi,
+            "iv_direction": result.iv_direction,
         }
 
         with json_path.open("w", encoding="utf-8") as f:
             json.dump(summary_payload, f, indent=2)
         logger.info("Wrote summary JSON to %s", json_path)
 
-        strikes = sorted(result.gex_by_strike.keys(), key=float)
+        summary_df = result.strike_summary_df.copy().reset_index().rename(columns={"index": "strike"})
         per_strike_df = pd.DataFrame(
             {
-                "strike": strikes,
-                "gex": [result.gex_by_strike[s] for s in strikes],
-                "vanna": [result.vanna_by_strike.get(s, 0.0) for s in strikes],
+                "strike": summary_df["strike"].astype(float),
+                "gex": summary_df["Net_GEX"].astype(float),
+                "vanna": summary_df["Net_Vanna"].astype(float),
+                "call_vanna_ratio": summary_df["Call_Vanna_Ratio"],
+                "put_vanna_ratio": summary_df["Put_Vanna_Ratio"],
+                "vanna_gex_total": summary_df["Vanna_GEX_Total"],
+                "ivxoi": summary_df["IVxOI"],
+                "median_ivxoi": summary_df["Median_IVxOI"],
+                "energy_score": summary_df["Energy_Score"],
+                "regime": summary_df["Regime"],
+                "dealer_bias": summary_df["Dealer_Bias"],
+                "iv_direction": result.iv_direction,
+                "rel_dist": summary_df["Rel_Dist"],
+                "top5_regime_energy_bias": summary_df["Top5_Regime_Energy_Bias"],
             }
         )
         per_strike_df.to_csv(csv_path, index=False)

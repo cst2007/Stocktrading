@@ -11,6 +11,7 @@ It ingests Barchart-format options chain CSV files, computes aggregate Vanna and
 - Clean and normalize greeks, open interest, and price columns.
 - Compute total and side-specific (calls vs puts) GEX and Vanna exposure.
 - Export JSON summaries, per-strike CSV tables, optional PNG curve charts, and OpenAI-powered insight JSON for each input file.
+- Classify market regimes, option energy, and dealer bias using deterministic Vanna/GEX ratios and the user-supplied implied volatility direction flag.
 - Command line interface for ad-hoc runs or batch processing directories.
 
 ## Local Setup
@@ -77,6 +78,7 @@ process the sample CSV files and write outputs to `./output/`.
      --input ./examples \
      --out ./output \
      --spot-price 5200 \
+     --iv-direction up \
      --no-charts
    ```
 
@@ -110,13 +112,13 @@ process the sample CSV files and write outputs to `./output/`.
 Run the analyzer against a Barchart CSV file:
 
 ```bash
-python -m barchart.cli --input ./data/$spx-options-exp-2025-11-03.csv --out ./output/ --spot-price 5200
+python -m barchart.cli --input ./data/$spx-options-exp-2025-11-03.csv --out ./output/ --spot-price 5200 --iv-direction up
 ```
 
 An example dataset is included under `examples/` for quick smoke testing:
 
 ```bash
-python -m barchart.cli --input ./examples --out ./output --spot-price 5200 --no-charts
+python -m barchart.cli --input ./examples --out ./output --spot-price 5200 --iv-direction down --no-charts
 ```
 
 Key options:
@@ -141,7 +143,7 @@ python -m barchart.webserver --input-dir ./examples --output-dir ./output
 ```
 
 Open <http://127.0.0.1:8000> in your browser. The page lists every unprocessed pair of CSV files
-and allows you to enter the spot price to use for calculations. After the pair is processed, the
+and allows you to enter the spot price and implied volatility direction to use for calculations. After the pair is processed, the
 source files are moved into an automatically managed `processed/` folder to keep the staging
 directory tidy.
 

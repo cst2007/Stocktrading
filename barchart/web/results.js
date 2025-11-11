@@ -8,6 +8,7 @@ const backButton = document.getElementById('back-button');
 const pairElement = document.getElementById('result-pair');
 const timestampElement = document.getElementById('result-timestamp');
 const spotElement = document.getElementById('result-spot');
+const ivDirectionElement = document.getElementById('result-iv-direction');
 const combinedElement = document.getElementById('result-combined');
 const derivedElement = document.getElementById('result-derived');
 const insightJsonElement = document.getElementById('result-insight-json');
@@ -83,6 +84,8 @@ function renderOverview(data) {
   pairElement.textContent = data.pairDisplay || 'Unknown pair';
   timestampElement.textContent = formatTimestamp(data.processedAt);
   spotElement.textContent = Number.isFinite(data.spotPrice) ? data.spotPrice : 'Unknown';
+  const directionValue = data.ivDirection || result.iv_direction || '';
+  ivDirectionElement.textContent = directionValue || 'Unknown';
 
   const result = data.result || {};
   renderFileLink(combinedElement, result.combined_csv, result.combined_csv_url);

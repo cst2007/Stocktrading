@@ -131,7 +131,8 @@ body {
   word-break: break-all;
 }
 
-.spot-label {
+.spot-label,
+.iv-direction-label {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -144,6 +145,14 @@ body {
   border: 1px solid #cbd2d9;
   border-radius: 0.5rem;
   font-size: 1rem;
+}
+
+.iv-direction-input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #cbd2d9;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  background-color: #fff;
 }
 
 .spot-input:focus {
