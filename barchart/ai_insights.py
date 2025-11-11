@@ -13,7 +13,15 @@ from pathlib import Path
 from typing import Any, Dict, Mapping
 
 import pandas as pd
-from openai import APIError, OpenAI
+
+try:  # pragma: no cover - exercised indirectly via configuration
+    from openai import APIError, OpenAI
+except ModuleNotFoundError as import_error:  # pragma: no cover - import guard
+    APIError = RuntimeError  # type: ignore[assignment]
+    OpenAI = None  # type: ignore[assignment]
+    _OPENAI_IMPORT_ERROR = import_error
+else:
+    _OPENAI_IMPORT_ERROR = None
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +191,11 @@ def build_prompt(metrics: InsightMetrics) -> str:
 
 
 def _create_client() -> OpenAI:
+    if OpenAI is None:
+        raise AIInsightsConfigurationError(
+            "The optional 'openai' package is not installed; install it or disable AI insights"
+        ) from _OPENAI_IMPORT_ERROR
+
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise AIInsightsConfigurationError(
