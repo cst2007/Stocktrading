@@ -716,9 +716,11 @@ class BarchartOptionsAnalyzer:
             if not spot_series.empty:
                 spot_value = float(spot_series.mean())
         if spot_value is not None and spot_value > 0:
-            summary["Rel_Dist"] = ((summary.index - spot_value).abs() / spot_value).round(4)
+            strike_values = pd.Series(summary.index.astype(float), index=summary.index, dtype="Float64")
+            rel_dist = ((strike_values - float(spot_value)).abs() / float(spot_value)).round(4)
+            summary["Rel_Dist"] = rel_dist.astype("Float64")
         else:
-            summary["Rel_Dist"] = pd.NA
+            summary["Rel_Dist"] = pd.Series(pd.NA, index=summary.index, dtype="Float64")
 
         summary["Top5_Regime_Energy_Bias"] = ""
         activity = summary["Call_Volume"] + summary["Put_Volume"]
