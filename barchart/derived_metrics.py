@@ -17,8 +17,6 @@ DERIVED_CSV_HEADER = [
     "net_GEX",
     "Vanna_GEX_Ratio",
     "Vanna_GEX_Call_Ratio",
-    "vanna_gex_ratio",
-    "vanna_gex_gex_ratio",
     "call_vanna_highlight",
     "net_gex_highlight",
 ]
@@ -60,9 +58,6 @@ def compute_derived_metrics(
 
     for column in ("Vanna_GEX_Ratio", "Vanna_GEX_Call_Ratio"):
         metrics[column] = metrics[column].astype("Float64").round(1)
-
-    metrics["vanna_gex_ratio"] = metrics["Vanna_GEX_Ratio"]
-    metrics["vanna_gex_gex_ratio"] = metrics["Vanna_GEX_Call_Ratio"]
 
     metrics["call_vanna_highlight"] = ""
     metrics["net_gex_highlight"] = ""
