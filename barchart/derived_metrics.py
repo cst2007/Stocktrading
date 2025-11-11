@@ -17,6 +17,10 @@ DERIVED_CSV_HEADER = [
     "net_GEX",
     "Vanna_GEX_Ratio",
     "Vanna_GEX_Call_Ratio",
+    "vanna_gex_ratio",
+    "vanna_gex_gex_ratio",
+    "call_vanna_highlight",
+    "net_gex_highlight",
 ]
 
 
@@ -53,6 +57,26 @@ def compute_derived_metrics(
 
     metrics["Vanna_GEX_Ratio"] = metrics["net_Vanna"] / net_gex_denom
     metrics["Vanna_GEX_Call_Ratio"] = metrics["call_Vanna"] / call_gex_denom
+
+    for column in ("Vanna_GEX_Ratio", "Vanna_GEX_Call_Ratio"):
+        metrics[column] = metrics[column].astype("Float64").round(1)
+
+    metrics["vanna_gex_ratio"] = metrics["Vanna_GEX_Ratio"]
+    metrics["vanna_gex_gex_ratio"] = metrics["Vanna_GEX_Call_Ratio"]
+
+    metrics["call_vanna_highlight"] = ""
+    metrics["net_gex_highlight"] = ""
+
+    if not metrics.empty:
+        call_count = int(metrics["call_Vanna"].count())
+        if call_count:
+            call_top = metrics["call_Vanna"].nlargest(min(3, call_count)).index
+            metrics.loc[call_top, "call_vanna_highlight"] = "highlight"
+
+        net_count = int(metrics["net_GEX"].count())
+        if net_count:
+            net_top = metrics["net_GEX"].nlargest(min(3, net_count)).index
+            metrics.loc[net_top, "net_gex_highlight"] = "highlight"
 
     return metrics[DERIVED_CSV_HEADER]
 
