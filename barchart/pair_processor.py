@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Sequence
 
 from .analyzer import BarchartOptionsAnalyzer, ProcessingResult
+from .ai_insights import AIInsightsConfigurationError, generate_ai_insight
 from .combiner import COMBINED_CSV_HEADER, combine_option_files
 from .derived_metrics import DERIVED_CSV_HEADER, compute_derived_metrics
 
@@ -191,6 +192,22 @@ def process_pair(
     derived_path = derived_dir / derived_filename
     derived_df.to_csv(derived_path, index=False, header=DERIVED_CSV_HEADER)
 
+    insights_dir = derived_dir / "insights"
+    insights_info: Dict[str, object] | None = None
+    try:
+        insights_info = generate_ai_insight(
+            combined_df=combined_df,
+            derived_df=derived_df,
+            derived_path=derived_path,
+            ticker=pair.ticker,
+            expiry=pair.expiry,
+            insights_dir=insights_dir,
+        )
+    except AIInsightsConfigurationError as exc:
+        logger.warning("Skipping AI insight generation: %s", exc)
+    except Exception:  # pragma: no cover - surfaced via CLI logging
+        logger.exception("Failed to generate AI insight for %s", derived_path)
+
     analyzer_output_dir = output_directory / "analysis"
     analyzer_output_dir.mkdir(parents=True, exist_ok=True)
     analyzer = BarchartOptionsAnalyzer(
@@ -213,6 +230,7 @@ def process_pair(
         "moved_files": [str(path) for path in moved_files],
         "derived_csv": str(derived_path),
         "summaries": summaries,
+        "insights": insights_info,
     }
 
 
