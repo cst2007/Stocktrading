@@ -682,7 +682,7 @@ class BarchartOptionsAnalyzer:
 
         summary["Net_GEX"] = summary["Call_GEX"] + summary["Put_GEX"]
         summary["Net_Vanna"] = summary["Call_Vanna"] + summary["Put_Vanna"]
-        summary["IVxOI"] = summary["Call_IVxOI"] + summary["Put_IVxOI"]
+        summary["IVxOI"] = (summary["Call_IVxOI"] + summary["Put_IVxOI"]).round(1)
 
         call_ratio_denom = summary["Call_GEX"].replace({0: pd.NA})
         put_ratio_denom = summary["Put_GEX"].replace({0: pd.NA})
