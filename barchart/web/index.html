@@ -17,6 +17,9 @@
           outputs. Processed files are moved into the <code>processed</code>
           folder automatically.
         </p>
+        <nav class="page-actions">
+          <a class="config-link" href="config.html">OpenAI configuration</a>
+        </nav>
       </header>
 
       <section id="messages" class="status" role="status" aria-live="polite"></section>
@@ -48,6 +51,11 @@
           <span>Spot price</span>
           <input type="number" class="spot-input" step="0.01" min="0" placeholder="e.g. 150.25" />
         </label>
+        <label class="insights-toggle">
+          <input type="checkbox" class="insights-checkbox" />
+          <span>Request OpenAI AI insight</span>
+        </label>
+        <p class="insights-note"></p>
         <button type="button" class="process-button">Process</button>
       </article>
     </template>

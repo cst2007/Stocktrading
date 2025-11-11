@@ -153,6 +153,7 @@ def process_pair(
     processed_directory: Path,
     contract_multiplier: float = 100.0,
     create_charts: bool = False,
+    enable_insights: bool = False,
 ) -> Dict[str, object]:
     """Combine and analyze ``pair``, then move the inputs into ``processed_directory``."""
 

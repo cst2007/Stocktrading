@@ -56,6 +56,9 @@ It ingests Barchart-format options chain CSV files, computes aggregate Vanna and
    ```
 
    If the API key is not supplied, insight generation is skipped and a warning is logged.
+   If the API key is not supplied, insight generation is skipped and a warning is logged. You can also
+   store the API key locally through the web UI by visiting the **OpenAI configuration** page (linked
+   from the main processing screen) once the server is running.
 
 5. **(Optional) Upgrade matplotlib dependencies for improved chart rendering**
 
@@ -93,7 +96,12 @@ process the sample CSV files and write outputs to `./output/`.
 
    Navigate to <http://127.0.0.1:8000> to stage pairs of CSVs, supply a spot price, and trigger analysis runs
    from the browser. Processed files are automatically moved to an internal `processed/` directory to avoid
-   duplicate work.
+   duplicate work. Use the **Request OpenAI AI insight** toggle on the processing card to include the
+   Phase&nbsp;2 AI step. Configure the API key ahead of time via environment variables or the OpenAI
+   configuration page at <http://127.0.0.1:8000/config.html>.
+
+   When an API key is configured, the processing flow also writes structured AI insights next to the derived
+   metrics output under `output/derived/insights/`.
 
    When the OpenAI environment variables are set, the processing flow also writes structured AI insights next to the derived metrics output under `output/derived/insights/`.
 
