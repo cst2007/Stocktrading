@@ -23,6 +23,27 @@ function setStatus(message, isError = false) {
   statusElement.classList.toggle('error', Boolean(isError));
 }
 
+function renderFileLink(element, filePath, fileUrl) {
+  element.innerHTML = '';
+
+  if (!filePath) {
+    element.textContent = 'Unavailable';
+    return;
+  }
+
+  if (fileUrl) {
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.textContent = filePath;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    element.appendChild(link);
+    return;
+  }
+
+  element.textContent = filePath;
+}
+
 function formatTimestamp(value) {
   if (!value) {
     return 'Unknown';
@@ -64,17 +85,25 @@ function renderOverview(data) {
   spotElement.textContent = Number.isFinite(data.spotPrice) ? data.spotPrice : 'Unknown';
 
   const result = data.result || {};
-  combinedElement.textContent = result.combined_csv || 'Unavailable';
-  derivedElement.textContent = result.derived_csv || 'Unavailable';
-  insightJsonElement.textContent = result.insights?.insight_json || 'Unavailable';
+  renderFileLink(combinedElement, result.combined_csv, result.combined_csv_url);
+  renderFileLink(derivedElement, result.derived_csv, result.derived_csv_url);
+  renderFileLink(
+    insightJsonElement,
+    result.insights?.insight_json,
+    result.insights?.insight_json_url,
+  );
 
   if (result.insights) {
     insightSection.hidden = false;
     insightModelElement.textContent = result.insights.model || 'Unknown';
     const latency = Number(result.insights.latency_ms);
     insightLatencyElement.textContent = Number.isFinite(latency) ? latency.toFixed(2) : 'Unknown';
-    insightPromptElement.textContent = result.insights.prompt || 'Unavailable';
-    insightResponseElement.textContent = result.insights.response || 'Unavailable';
+    renderFileLink(insightPromptElement, result.insights.prompt, result.insights.prompt_url);
+    renderFileLink(
+      insightResponseElement,
+      result.insights.response,
+      result.insights.response_url,
+    );
   } else {
     insightSection.hidden = true;
     insightModelElement.textContent = '';
@@ -84,17 +113,32 @@ function renderOverview(data) {
   }
 
   movedListElement.innerHTML = '';
-  const movedFiles = Array.isArray(result.moved_files) ? result.moved_files : [];
+  let movedFiles = [];
+  if (Array.isArray(result.moved_files_info)) {
+    movedFiles = result.moved_files_info;
+  } else if (Array.isArray(result.moved_files)) {
+    movedFiles = result.moved_files.map((path) => ({ path, url: null }));
+  }
   if (movedFiles.length === 0) {
     const item = document.createElement('li');
     item.textContent = 'No files were moved.';
     movedListElement.appendChild(item);
   } else {
-    movedFiles.forEach((filePath) => {
+    movedFiles.forEach((entry) => {
+      const { path: filePath, url } = entry;
       const item = document.createElement('li');
-      const code = document.createElement('code');
-      code.textContent = filePath;
-      item.appendChild(code);
+      if (filePath && url) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.textContent = filePath;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        item.appendChild(link);
+      } else {
+        const code = document.createElement('code');
+        code.textContent = filePath || 'Unavailable';
+        item.appendChild(code);
+      }
       movedListElement.appendChild(item);
     });
   }
@@ -160,24 +204,37 @@ function renderTabs(data) {
     const list = document.createElement('ul');
     list.className = 'summary-list';
 
-    const addListItem = (label, value) => {
+    const addListItem = (label, value, url) => {
       const item = document.createElement('li');
       const labelElement = document.createElement('span');
       labelElement.className = 'summary-label';
       labelElement.textContent = `${label}:`;
       item.appendChild(labelElement);
 
-      const valueElement = document.createElement('code');
-      valueElement.textContent = value || 'Unavailable';
-      item.appendChild(valueElement);
+      if (value && url) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.textContent = value;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        item.appendChild(link);
+      } else {
+        const valueElement = document.createElement('code');
+        valueElement.textContent = value || 'Unavailable';
+        item.appendChild(valueElement);
+      }
 
       list.appendChild(item);
     };
 
-    addListItem('Summary JSON', summary.summary_json);
-    addListItem('Per-strike CSV', summary.per_strike_csv);
+    addListItem('Summary JSON', summary.summary_json, summary.summary_json_url);
+    addListItem(
+      'Per-strike CSV',
+      summary.per_strike_csv,
+      summary.per_strike_csv_url,
+    );
     if (summary.chart) {
-      addListItem('Chart', summary.chart);
+      addListItem('Chart', summary.chart, summary.chart_url);
     }
 
     panel.appendChild(list);
