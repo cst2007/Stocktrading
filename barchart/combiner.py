@@ -17,6 +17,7 @@ COMBINED_CSV_HEADER = [
     "call_volume",
     "call_open_interest",
     "call_iv",
+    "call_oi_iv",
     "call_delta",
     "call_gamma",
     "call_vega",
@@ -25,6 +26,7 @@ COMBINED_CSV_HEADER = [
     "puts_volume",
     "puts_open_interest",
     "puts_iv",
+    "puts_oi_iv",
     "puts_delta",
     "puts_gamma",
     "puts_vega",
@@ -160,11 +162,15 @@ def combine_option_files(
         * 100
     )
 
+    merged["call_oi_iv"] = merged["call_open_interest"] * merged["call_iv"]
+    merged["puts_oi_iv"] = merged["puts_open_interest"] * merged["puts_iv"]
+
     merged["net_gex"] = merged["call_gex"] + merged["puts_gex"]
     merged["net_vanna"] = merged["call_vanna"] + merged["puts_vanna"]
 
     rounding_map = {
         "call_iv": 1,
+        "call_oi_iv": 1,
         "call_delta": 1,
         "call_gamma": 1,
         "call_vega": 1,
@@ -173,6 +179,7 @@ def combine_option_files(
         "puts_gex": 1,
         "puts_vanna": 1,
         "puts_iv": 1,
+        "puts_oi_iv": 1,
         "puts_delta": 1,
         "puts_gamma": 1,
         "puts_vega": 1,
@@ -187,6 +194,7 @@ def combine_option_files(
         "call_volume",
         "call_open_interest",
         "call_iv",
+        "call_oi_iv",
         "call_delta",
         "call_gamma",
         "call_vega",
@@ -195,6 +203,7 @@ def combine_option_files(
         "puts_volume",
         "puts_open_interest",
         "puts_iv",
+        "puts_oi_iv",
         "puts_delta",
         "puts_gamma",
         "puts_vega",
