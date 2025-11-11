@@ -463,6 +463,7 @@ class BarchartOptionsAnalyzer:
         call_mask = df["option_type"] == "call"
         put_mask = df["option_type"] == "put"
 
+        has_raw_vanna = "vanna" in df.columns and not df["vanna"].isna().all()
         can_compute_vanna = {
             "delta",
             "vega",
@@ -471,7 +472,9 @@ class BarchartOptionsAnalyzer:
             df["delta"].isna().all() or df["vega"].isna().all()
         )
 
-        if can_compute_vanna:
+        if has_raw_vanna:
+            df["vanna"] = pd.to_numeric(df["vanna"], errors="coerce").fillna(0.0)
+        elif can_compute_vanna:
             df.loc[call_mask, "vanna"] = (
                 df.loc[call_mask, "open_interest"]
                 * (1 - df.loc[call_mask, "delta"])
@@ -484,8 +487,6 @@ class BarchartOptionsAnalyzer:
                 * df.loc[put_mask, "vega"]
                 * 100
             )
-        elif "vanna" in df.columns:
-            df["vanna"] = pd.to_numeric(df["vanna"], errors="coerce").fillna(0.0)
         else:
             raise MissingGreeksError(
                 "CSV is missing the data required to compute Vanna (expected delta/vega or a vanna column)."
@@ -493,22 +494,23 @@ class BarchartOptionsAnalyzer:
 
         gex_factor = contract_multiplier
 
+        has_raw_gex = "gex" in df.columns and not df["gex"].isna().all()
         can_compute_gex = {
             "gamma",
             "open_interest",
         }.issubset(df.columns) and not df["gamma"].isna().all()
 
-        if can_compute_gex:
-            df["gex"] = df["gamma"] * df["open_interest"] * gex_factor
-            if open_interest_missing:
-                logger.warning(
-                    "Open interest was missing; GEX values are computed assuming zero open interest."
-                )
-        elif "gex" in df.columns:
+        if has_raw_gex:
             df["gex"] = pd.to_numeric(df["gex"], errors="coerce").fillna(0.0)
             if open_interest_missing:
                 logger.warning(
                     "Open interest missing from CSV; using provided GEX values without adjustment."
+                )
+        elif can_compute_gex:
+            df["gex"] = df["gamma"] * df["open_interest"] * gex_factor
+            if open_interest_missing:
+                logger.warning(
+                    "Open interest was missing; GEX values are computed assuming zero open interest."
                 )
         else:
             if open_interest_missing:
