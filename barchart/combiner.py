@@ -27,6 +27,7 @@ COMBINED_CSV_HEADER = [
     "puts_open_interest",
     "puts_iv",
     "puts_oi_iv",
+    "IVxOI",
     "puts_delta",
     "puts_gamma",
     "puts_vega",
@@ -34,6 +35,7 @@ COMBINED_CSV_HEADER = [
     "puts_vanna",
     "net_gex",
     "net_vanna",
+    "Spot",
 ]
 
 
@@ -165,8 +167,12 @@ def combine_option_files(
     merged["call_oi_iv"] = merged["call_open_interest"] * merged["call_iv"]
     merged["puts_oi_iv"] = merged["puts_open_interest"] * merged["puts_iv"]
 
+    merged["IVxOI"] = merged[["call_oi_iv", "puts_oi_iv"]].fillna(0).sum(axis=1)
+
     merged["net_gex"] = merged["call_gex"] + merged["puts_gex"]
     merged["net_vanna"] = merged["call_vanna"] + merged["puts_vanna"]
+
+    merged["Spot"] = float(spot_price)
 
     rounding_map = {
         "call_iv": 1,
@@ -176,6 +182,7 @@ def combine_option_files(
         "call_vega": 1,
         "call_gex": 1,
         "call_vanna": 1,
+        "IVxOI": 1,
         "puts_gex": 1,
         "puts_vanna": 1,
         "puts_iv": 1,
@@ -185,6 +192,7 @@ def combine_option_files(
         "puts_vega": 1,
         "net_gex": 1,
         "net_vanna": 1,
+        "Spot": 2,
     }
     for column, decimals in rounding_map.items():
         merged[column] = merged[column].round(decimals)
@@ -204,6 +212,7 @@ def combine_option_files(
         "puts_open_interest",
         "puts_iv",
         "puts_oi_iv",
+        "IVxOI",
         "puts_delta",
         "puts_gamma",
         "puts_vega",
@@ -211,6 +220,7 @@ def combine_option_files(
         "puts_vanna",
         "net_gex",
         "net_vanna",
+        "Spot",
     ]
 
     return merged[columns].sort_values("Strike").reset_index(drop=True)

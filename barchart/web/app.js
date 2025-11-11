@@ -79,6 +79,7 @@ function renderPairs(pairs) {
 
     const processButton = card.querySelector('.process-button');
     const input = card.querySelector('.spot-input');
+    const ivDirectionSelect = card.querySelector('.iv-direction-input');
     const insightsToggle = card.querySelector('.insights-checkbox');
     const insightsNote = card.querySelector('.insights-note');
 
@@ -97,14 +98,14 @@ function renderPairs(pairs) {
     }
 
     processButton.addEventListener('click', () => {
-      handleProcess(pair, input, processButton, insightsToggle);
+      handleProcess(pair, input, ivDirectionSelect, processButton, insightsToggle);
     });
 
     pairsContainer.appendChild(fragment);
   });
 }
 
-async function handleProcess(pair, input, button, insightsToggle) {
+async function handleProcess(pair, input, ivDirectionSelect, button, insightsToggle) {
   const value = input.value.trim();
   if (!value) {
     input.focus();
@@ -116,6 +117,13 @@ async function handleProcess(pair, input, button, insightsToggle) {
   if (!Number.isFinite(spotPrice)) {
     input.focus();
     setStatus('Spot price must be a valid number.', true);
+    return;
+  }
+
+  const ivDirection = ivDirectionSelect?.value?.trim().toLowerCase();
+  if (!ivDirection || !['up', 'down'].includes(ivDirection)) {
+    ivDirectionSelect?.focus();
+    setStatus('Select whether implied volatility is trending up or down.', true);
     return;
   }
 
@@ -134,6 +142,7 @@ async function handleProcess(pair, input, button, insightsToggle) {
       body: JSON.stringify({
         pair_id: pair.id,
         spot_price: spotPrice,
+        iv_direction: ivDirection,
         generate_insights: generateInsights,
       }),
     });
@@ -152,6 +161,7 @@ async function handleProcess(pair, input, button, insightsToggle) {
       JSON.stringify({
         pairDisplay: pair.label || fallbackLabel || pair.id,
         spotPrice,
+        ivDirection,
         processedAt: new Date().toISOString(),
         result,
         generateInsights,

@@ -48,8 +48,12 @@ PROMPT_TEMPLATE = textwrap.dedent(
       Net Vanna: {net_Vanna}
       Net GEX: {net_GEX}
       Total Net DEX: {net_DEX_total}
-      Vanna/GEX Ratio: {Vanna_GEX_Ratio}
-      Vanna/GEX Call Ratio: {Vanna_GEX_Call_Ratio}
+      Call Vanna Ratio: {Call_Vanna_Ratio}
+      Put Vanna Ratio: {Put_Vanna_Ratio}
+      Net Vanna/GEX Ratio: {Vanna_GEX_Total}
+      Energy Score: {Energy_Score}
+      Dealer Bias: {Dealer_Bias}
+      IV Direction: {IV_Direction}
       Strike Range: {min_strike} - {max_strike}
 
     QUESTIONS:
@@ -109,8 +113,12 @@ class InsightMetrics:
     net_Vanna: float
     net_GEX: float
     net_DEX_total: float
-    Vanna_GEX_Ratio: float | None
-    Vanna_GEX_Call_Ratio: float | None
+    Call_Vanna_Ratio: float | None
+    Put_Vanna_Ratio: float | None
+    Vanna_GEX_Total: float | None
+    Energy_Score: str
+    Dealer_Bias: str
+    IV_Direction: str
     min_strike: float
     max_strike: float
 
@@ -155,15 +163,30 @@ def summarize_metrics(
         net_dex_total = float(derived_df.attrs.get("total_net_DEX", 0.0))
 
     with pd.option_context("mode.use_inf_as_na", True):
-        vanna_gex_ratio = net_vanna / net_gex if net_gex else None
-
         call_vanna_total = combined_df["call_vanna"].fillna(0).sum()
         call_gex_total = combined_df["call_gex"].fillna(0).sum()
-        vanna_gex_call_ratio = (
-            float(call_vanna_total) / float(call_gex_total)
-            if call_gex_total
-            else None
-        )
+        call_vanna_ratio = float(call_vanna_total) / float(call_gex_total) if call_gex_total else None
+
+        put_vanna_total = combined_df["puts_vanna"].fillna(0).sum()
+        put_gex_total = combined_df["puts_gex"].fillna(0).sum()
+        put_vanna_ratio = float(put_vanna_total) / float(put_gex_total) if put_gex_total else None
+
+        vanna_gex_total = net_vanna / net_gex if net_gex else None
+
+    iv_direction = ""
+    if "IV_Direction" in derived_df.columns:
+        direction_series = derived_df["IV_Direction"].dropna().astype(str)
+        if not direction_series.empty:
+            iv_direction = direction_series.iloc[0]
+
+    energy_score = ""
+    dealer_bias = ""
+    if {"IVxOI", "Energy_Score", "Dealer_Bias"}.issubset(derived_df.columns):
+        ivxoi_series = pd.to_numeric(derived_df["IVxOI"], errors="coerce")
+        if not ivxoi_series.dropna().empty:
+            top_index = ivxoi_series.idxmax()
+            energy_score = str(derived_df.at[top_index, "Energy_Score"])
+            dealer_bias = str(derived_df.at[top_index, "Dealer_Bias"])
 
     min_strike = float(combined_df["Strike"].min()) if not combined_df.empty else 0.0
     max_strike = float(combined_df["Strike"].max()) if not combined_df.empty else 0.0
@@ -181,9 +204,12 @@ def summarize_metrics(
         net_Vanna=round(net_vanna, 2),
         net_GEX=round(net_gex, 2),
         net_DEX_total=round(net_dex_total, 2),
-        Vanna_GEX_Ratio=round(vanna_gex_ratio, 2) if vanna_gex_ratio is not None else None,
-        Vanna_GEX_Call_Ratio=
-        round(vanna_gex_call_ratio, 2) if vanna_gex_call_ratio is not None else None,
+        Call_Vanna_Ratio=round(call_vanna_ratio, 2) if call_vanna_ratio is not None else None,
+        Put_Vanna_Ratio=round(put_vanna_ratio, 2) if put_vanna_ratio is not None else None,
+        Vanna_GEX_Total=round(vanna_gex_total, 2) if vanna_gex_total is not None else None,
+        Energy_Score=energy_score,
+        Dealer_Bias=dealer_bias,
+        IV_Direction=iv_direction,
         min_strike=round(min_strike, 2),
         max_strike=round(max_strike, 2),
     )
@@ -191,9 +217,15 @@ def summarize_metrics(
 
 def build_prompt(metrics: InsightMetrics) -> str:
     payload = metrics.__dict__.copy()
-    for key in ("Vanna_GEX_Ratio", "Vanna_GEX_Call_Ratio"):
+    for key in ("Call_Vanna_Ratio", "Put_Vanna_Ratio", "Vanna_GEX_Total"):
         if payload[key] is None:
             payload[key] = "N/A"
+    if not payload["Energy_Score"]:
+        payload["Energy_Score"] = "Unknown"
+    if not payload["Dealer_Bias"]:
+        payload["Dealer_Bias"] = "Neutral"
+    if not payload["IV_Direction"]:
+        payload["IV_Direction"] = "Unknown"
     return PROMPT_TEMPLATE.format(**payload)
 
 

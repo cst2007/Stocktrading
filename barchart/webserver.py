@@ -198,6 +198,14 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": "'spot_price' must be numeric"}, status=HTTPStatus.BAD_REQUEST)
             return
 
+        iv_direction = str(payload.get("iv_direction", "")).strip().lower()
+        if iv_direction not in {"up", "down"}:
+            self._send_json(
+                {"error": "'iv_direction' must be either 'up' or 'down'"},
+                status=HTTPStatus.BAD_REQUEST,
+            )
+            return
+
         generate_insights = bool(payload.get("generate_insights"))
         if generate_insights and not (self.state.openai_api_key or os.getenv("OPENAI_API_KEY")):
             self._send_json(
@@ -223,6 +231,7 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
             result = process_pair(
                 pair,
                 spot_price=spot_price,
+                iv_direction=iv_direction,
                 output_directory=self.state.output_dir,
                 processed_directory=self.state.processed_dir,
                 contract_multiplier=self.state.contract_multiplier,
@@ -240,6 +249,7 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
             "pairDisplay": pair.label,
             "pair": pair.to_dict(relative_to=pair.side_by_side_path.parent),
             "spotPrice": spot_price,
+            "ivDirection": iv_direction,
             "processedAt": processed_at,
             "result": result_payload,
             "generateInsights": generate_insights,
