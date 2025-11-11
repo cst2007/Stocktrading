@@ -12,6 +12,7 @@ from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Dict, Tuple
+from urllib.parse import quote, urlsplit, unquote
 
 from .pair_processor import OptionFilePair, discover_pairs, process_pair
 
@@ -127,17 +128,24 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(state.static_dir), **kwargs)
 
     def do_GET(self) -> None:  # noqa: N802 - inherited name
-        if self.path == "/" or self.path == "/index.html":
+        parsed = urlsplit(self.path)
+        if parsed.path == "/" or parsed.path == "/index.html":
             self.path = "/index.html"
             return super().do_GET()
-        if self.path == "/api/pairs":
+        if parsed.path == "/api/pairs":
             self._handle_list_pairs()
             return
-        if self.path == "/api/config/openai":
+        if parsed.path == "/api/config/openai":
             self._handle_get_openai_config()
             return
-        if self.path == "/api/results/latest":
+        if parsed.path == "/api/results/latest":
             self._handle_get_latest_result()
+            return
+        if parsed.path.startswith("/output/"):
+            self._handle_serve_generated_file(self.state.output_dir, parsed.path[len("/output/"):])
+            return
+        if parsed.path.startswith("/processed/"):
+            self._handle_serve_generated_file(self.state.processed_dir, parsed.path[len("/processed/"):])
             return
         super().do_GET()
 
@@ -225,13 +233,15 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
             return
 
+        result_payload = self._augment_result_payload(result)
+
         processed_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         latest_payload: Dict[str, object] = {
             "pairDisplay": pair.label,
             "pair": pair.to_dict(relative_to=pair.side_by_side_path.parent),
             "spotPrice": spot_price,
             "processedAt": processed_at,
-            "result": result,
+            "result": result_payload,
             "generateInsights": generate_insights,
         }
 
@@ -240,7 +250,7 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
         except OSError:
             pass
 
-        self._send_json({"status": "ok", "result": result})
+        self._send_json({"status": "ok", "result": result_payload})
 
     def _handle_get_openai_config(self) -> None:
         has_key = bool(self.state.openai_api_key or os.getenv("OPENAI_API_KEY"))
@@ -280,6 +290,16 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
             )
             return
 
+        result = payload.get("result")
+        if isinstance(result, dict):
+            result_payload = self._augment_result_payload(result)
+            payload = dict(payload)
+            payload["result"] = result_payload
+            try:
+                self.state.save_latest_result(payload)
+            except OSError:
+                pass
+
         self._send_json({"result": payload})
 
     # ------------------------------------------------------------------
@@ -297,6 +317,92 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _augment_result_payload(self, result: Dict[str, object]) -> Dict[str, object]:
+        enriched: Dict[str, object] = dict(result)
+
+        def _build_url(path_value: object) -> str | None:
+            if not isinstance(path_value, str) or not path_value:
+                return None
+            try:
+                resolved = Path(path_value).expanduser().resolve(strict=False)
+            except (OSError, ValueError):
+                return None
+
+            for base_dir, prefix in (
+                (self.state.output_dir, "/output/"),
+                (self.state.processed_dir, "/processed/"),
+            ):
+                base_resolved = base_dir.expanduser().resolve()
+                try:
+                    relative = resolved.relative_to(base_resolved)
+                except ValueError:
+                    continue
+
+                encoded = "/".join(quote(part) for part in relative.parts)
+                return prefix + encoded
+            return None
+
+        enriched["combined_csv_url"] = _build_url(result.get("combined_csv"))
+        enriched["derived_csv_url"] = _build_url(result.get("derived_csv"))
+
+        moved_files = result.get("moved_files")
+        moved_entries = []
+        if isinstance(moved_files, list):
+            for entry in moved_files:
+                if isinstance(entry, str):
+                    moved_entries.append({"path": entry, "url": _build_url(entry)})
+        enriched["moved_files_info"] = moved_entries
+
+        summaries = []
+        original_summaries = result.get("summaries")
+        if isinstance(original_summaries, list):
+            for summary in original_summaries:
+                if not isinstance(summary, dict):
+                    continue
+                summary_copy = dict(summary)
+                summary_copy["summary_json_url"] = _build_url(summary.get("summary_json"))
+                summary_copy["per_strike_csv_url"] = _build_url(summary.get("per_strike_csv"))
+                if "chart" in summary:
+                    summary_copy["chart_url"] = _build_url(summary.get("chart"))
+                summaries.append(summary_copy)
+        enriched["summaries"] = summaries
+
+        insights = result.get("insights")
+        if isinstance(insights, dict):
+            insight_copy = dict(insights)
+            insight_copy["prompt_url"] = _build_url(insights.get("prompt"))
+            insight_copy["response_url"] = _build_url(insights.get("response"))
+            insight_copy["insight_json_url"] = _build_url(insights.get("insight_json"))
+            enriched["insights"] = insight_copy
+
+        return enriched
+
+    def _handle_serve_generated_file(self, base_dir: Path, remainder: str) -> None:
+        safe_base = base_dir.expanduser().resolve()
+        relative_path = unquote(remainder.lstrip("/"))
+        target = (safe_base / relative_path).resolve()
+
+        try:
+            target.relative_to(safe_base)
+        except ValueError:
+            self.send_error(HTTPStatus.NOT_FOUND, "File not found")
+            return
+
+        if not target.exists() or not target.is_file():
+            self.send_error(HTTPStatus.NOT_FOUND, "File not found")
+            return
+
+        try:
+            with target.open("rb") as handle:
+                self.send_response(HTTPStatus.OK)
+                content_type = self.guess_type(str(target)) or "application/octet-stream"
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(target.stat().st_size))
+                self.end_headers()
+                self.copyfile(handle, self.wfile)
+        except OSError as exc:
+            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Unable to read file: {exc}")
 
 
 def build_parser() -> argparse.ArgumentParser:
