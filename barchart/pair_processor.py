@@ -195,20 +195,19 @@ def process_pair(
 
     insights_dir = derived_dir / "insights"
     insights_info: Dict[str, object] | None = None
-    if enable_insights:
-        try:
-            insights_info = generate_ai_insight(
-                combined_df=combined_df,
-                derived_df=derived_df,
-                derived_path=derived_path,
-                ticker=pair.ticker,
-                expiry=pair.expiry,
-                insights_dir=insights_dir,
-            )
-        except AIInsightsConfigurationError as exc:
-            logger.warning("Skipping AI insight generation: %s", exc)
-        except Exception:  # pragma: no cover - surfaced via CLI logging
-            logger.exception("Failed to generate AI insight for %s", derived_path)
+    try:
+        insights_info = generate_ai_insight(
+            combined_df=combined_df,
+            derived_df=derived_df,
+            derived_path=derived_path,
+            ticker=pair.ticker,
+            expiry=pair.expiry,
+            insights_dir=insights_dir,
+        )
+    except AIInsightsConfigurationError as exc:
+        logger.warning("Skipping AI insight generation: %s", exc)
+    except Exception:  # pragma: no cover - surfaced via CLI logging
+        logger.exception("Failed to generate AI insight for %s", derived_path)
 
     analyzer_output_dir = output_directory / "analysis"
     analyzer_output_dir.mkdir(parents=True, exist_ok=True)

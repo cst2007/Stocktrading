@@ -55,6 +55,7 @@ It ingests Barchart-format options chain CSV files, computes aggregate Vanna and
    export OPENAI_ORG="org_your_org"
    ```
 
+   If the API key is not supplied, insight generation is skipped and a warning is logged.
    If the API key is not supplied, insight generation is skipped and a warning is logged. You can also
    store the API key locally through the web UI by visiting the **OpenAI configuration** page (linked
    from the main processing screen) once the server is running.
@@ -101,6 +102,8 @@ process the sample CSV files and write outputs to `./output/`.
 
    When an API key is configured, the processing flow also writes structured AI insights next to the derived
    metrics output under `output/derived/insights/`.
+
+   When the OpenAI environment variables are set, the processing flow also writes structured AI insights next to the derived metrics output under `output/derived/insights/`.
 
 ## Usage
 
