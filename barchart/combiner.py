@@ -164,20 +164,20 @@ def combine_option_files(
     merged["net_vanna"] = merged["call_vanna"] + merged["puts_vanna"]
 
     rounding_map = {
-        "call_iv": 4,
-        "call_delta": 4,
-        "call_gamma": 6,
-        "call_vega": 4,
-        "call_gex": 4,
-        "call_vanna": 6,
-        "puts_gex": 4,
-        "puts_vanna": 6,
-        "puts_iv": 4,
-        "puts_delta": 4,
-        "puts_gamma": 6,
-        "puts_vega": 4,
-        "net_gex": 4,
-        "net_vanna": 6,
+        "call_iv": 1,
+        "call_delta": 1,
+        "call_gamma": 1,
+        "call_vega": 1,
+        "call_gex": 1,
+        "call_vanna": 1,
+        "puts_gex": 1,
+        "puts_vanna": 1,
+        "puts_iv": 1,
+        "puts_delta": 1,
+        "puts_gamma": 1,
+        "puts_vega": 1,
+        "net_gex": 1,
+        "net_vanna": 1,
     }
     for column, decimals in rounding_map.items():
         merged[column] = merged[column].round(decimals)
