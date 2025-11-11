@@ -187,25 +187,53 @@ function renderTabs(data) {
   activateTab(0);
 }
 
-function loadResult() {
+async function loadResult() {
   const raw = sessionStorage.getItem('latestProcessResult');
-  if (!raw) {
-    setStatus('No recent processing results were found. Process a pair to view its outputs.', true);
-    overviewSection.hidden = true;
-    tabsSection.hidden = true;
-    return;
+  if (raw) {
+    try {
+      const data = JSON.parse(raw);
+      setStatus('Processing run loaded successfully.');
+      renderOverview(data);
+      renderTabs(data);
+      return;
+    } catch (error) {
+      console.error(error);
+      sessionStorage.removeItem('latestProcessResult');
+      setStatus('Stored results were corrupted. Attempting to load the most recent run…', true);
+    }
+  } else {
+    setStatus('Looking for the most recent processing run…');
   }
 
+  overviewSection.hidden = true;
+  tabsSection.hidden = true;
+
   try {
-    const data = JSON.parse(raw);
+    const response = await fetch('/api/results/latest');
+    const payload = await response.json();
+
+    if (!response.ok) {
+      const message = payload?.error || 'Unable to load the most recent processing run.';
+      throw new Error(message);
+    }
+
+    const data = payload?.result;
+    if (!data || typeof data !== 'object') {
+      throw new Error('Latest processing payload was malformed.');
+    }
+
+    sessionStorage.setItem('latestProcessResult', JSON.stringify(data));
+
     setStatus('Processing run loaded successfully.');
     renderOverview(data);
     renderTabs(data);
   } catch (error) {
     console.error(error);
-    setStatus('Unable to read the stored results. Try processing the files again.', true);
-    overviewSection.hidden = true;
-    tabsSection.hidden = true;
+    setStatus(
+      error.message ||
+        'No recent processing results were found. Process a pair to view its outputs.',
+      true,
+    );
   }
 }
 
