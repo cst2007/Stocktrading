@@ -35,6 +35,18 @@ COMBINED_CSV_HEADER = [
 ]
 
 
+def _clean_strike(series: pd.Series) -> pd.Series:
+    """Return a numeric strike column regardless of thousands separators."""
+
+    cleaned = (
+        series.astype(str)
+        .str.replace(",", "", regex=False)
+        .str.replace("$", "", regex=False)
+        .str.strip()
+    )
+    return pd.to_numeric(cleaned, errors="coerce")
+
+
 def _load_side_by_side(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
 
@@ -64,7 +76,7 @@ def _load_side_by_side(path: Path) -> pd.DataFrame:
 
     side = pd.DataFrame(
         {
-            "Strike": pd.to_numeric(df["Strike"], errors="coerce"),
+            "Strike": _clean_strike(df["Strike"]),
             "call_volume": _clean_numeric(df["Volume"]),
             "call_open_interest": _clean_numeric(df["Open Int"]),
             "call_iv": _clean_numeric(df["IV"], is_percent=True),
@@ -104,7 +116,7 @@ def _load_greeks(path: Path) -> pd.DataFrame:
 
     greeks = pd.DataFrame(
         {
-            "Strike": pd.to_numeric(df["Strike"], errors="coerce"),
+            "Strike": _clean_strike(df["Strike"]),
             "call_delta": pd.to_numeric(df["Delta"], errors="coerce"),
             "call_gamma": pd.to_numeric(df["Gamma"], errors="coerce"),
             "call_vega": pd.to_numeric(df["Vega"], errors="coerce"),
