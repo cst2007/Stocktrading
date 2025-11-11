@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from functools import partial
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -58,6 +59,10 @@ class ServerState:
     def static_dir(self) -> Path:
         return Path(__file__).resolve().parent / "web"
 
+    @property
+    def latest_result_path(self) -> Path:
+        return self.output_dir / "latest_result.json"
+
     def load_openai_api_key(self) -> None:
         stored_key = _read_openai_key(self.settings_path)
         env_key = os.getenv("OPENAI_API_KEY")
@@ -95,6 +100,26 @@ class ServerState:
 
         os.environ.pop("OPENAI_API_KEY", None)
 
+    def save_latest_result(self, payload: Dict[str, object]) -> None:
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        with self.latest_result_path.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2)
+
+    def load_latest_result(self) -> Dict[str, object] | None:
+        path = self.latest_result_path
+        if not path.exists():
+            return None
+
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, json.JSONDecodeError):
+            return None
+
+        if isinstance(data, dict):
+            return data
+        return None
+
 
 class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, state: ServerState, **kwargs):
@@ -110,6 +135,9 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
             return
         if self.path == "/api/config/openai":
             self._handle_get_openai_config()
+            return
+        if self.path == "/api/results/latest":
+            self._handle_get_latest_result()
             return
         super().do_GET()
 
@@ -197,6 +225,21 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
             self._send_json({"error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
             return
 
+        processed_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        latest_payload: Dict[str, object] = {
+            "pairDisplay": pair.label,
+            "pair": pair.to_dict(relative_to=pair.side_by_side_path.parent),
+            "spotPrice": spot_price,
+            "processedAt": processed_at,
+            "result": result,
+            "generateInsights": generate_insights,
+        }
+
+        try:
+            self.state.save_latest_result(latest_payload)
+        except OSError:
+            pass
+
         self._send_json({"status": "ok", "result": result})
 
     def _handle_get_openai_config(self) -> None:
@@ -227,6 +270,17 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
             return
 
         self._send_json({"status": "ok", "has_api_key": bool(self.state.openai_api_key)})
+
+    def _handle_get_latest_result(self) -> None:
+        payload = self.state.load_latest_result()
+        if payload is None:
+            self._send_json(
+                {"error": "No processing results are available yet."},
+                status=HTTPStatus.NOT_FOUND,
+            )
+            return
+
+        self._send_json({"result": payload})
 
     # ------------------------------------------------------------------
     # Helpers
