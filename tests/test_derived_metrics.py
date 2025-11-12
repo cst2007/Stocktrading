@@ -154,6 +154,8 @@ def test_totals_row_is_appended_when_requested():
     assert totals_row["Net_GEX_Highlight"] == ""
     assert totals_row["DEX_highlight"] == ""
     assert totals_row["TEX_highlight"] == ""
+    assert totals_row["Call_IVxOI_Highlight"] == ""
+    assert totals_row["Put_IVxOI_Highlight"] == ""
 
     data_only = metrics.iloc[:-1]
     expected_net_gex_total = pd.to_numeric(data_only["Net_GEX"], errors="coerce").sum()
@@ -211,7 +213,7 @@ def test_put_vanna_highlight_marks_top_strikes():
         )
 
 
-def test_dex_highlight_marks_top_strikes():
+def test_dex_highlight_marks_top_and_bottom_strikes():
     df = _build_sample_frame()
     metrics = compute_derived_metrics(
         df,
@@ -221,13 +223,46 @@ def test_dex_highlight_marks_top_strikes():
     )
 
     highlighted = metrics.loc[metrics["DEX_highlight"] != ""]
-    top_dex_indices = metrics["Net_DEX"].nlargest(5).index
+    top_dex_indices = metrics["Net_DEX"].nlargest(4).index
+    bottom_dex_indices = metrics["Net_DEX"].nsmallest(4).index
+    bottom_dex_exclusive = [idx for idx in bottom_dex_indices if idx not in set(top_dex_indices)]
 
-    assert set(highlighted.index) == set(top_dex_indices)
+    expected_indices = set(top_dex_indices).union(set(bottom_dex_exclusive))
+    assert set(highlighted.index) == expected_indices
 
     for rank, idx in enumerate(top_dex_indices, start=1):
         strike_value = _format_strike(metrics.at[idx, "Strike"])
         assert metrics.at[idx, "DEX_highlight"] == f"Top {rank} : {strike_value}"
+
+    for rank, idx in enumerate(bottom_dex_exclusive, start=1):
+        strike_value = _format_strike(metrics.at[idx, "Strike"])
+        assert metrics.at[idx, "DEX_highlight"] == f"Bottom {rank} : {strike_value}"
+
+
+def test_net_gex_highlight_marks_top_and_bottom_strikes():
+    df = _build_sample_frame()
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+        iv_direction="up",
+    )
+
+    highlighted = metrics.loc[metrics["Net_GEX_Highlight"] != ""]
+    top_gex_indices = metrics["Net_GEX"].nlargest(4).index
+    bottom_gex_indices = metrics["Net_GEX"].nsmallest(4).index
+    bottom_gex_exclusive = [idx for idx in bottom_gex_indices if idx not in set(top_gex_indices)]
+
+    expected_indices = set(top_gex_indices).union(set(bottom_gex_exclusive))
+    assert set(highlighted.index) == expected_indices
+
+    for rank, idx in enumerate(top_gex_indices, start=1):
+        strike_value = _format_strike(metrics.at[idx, "Strike"])
+        assert metrics.at[idx, "Net_GEX_Highlight"] == f"Top {rank} : {strike_value}"
+
+    for rank, idx in enumerate(bottom_gex_exclusive, start=1):
+        strike_value = _format_strike(metrics.at[idx, "Strike"])
+        assert metrics.at[idx, "Net_GEX_Highlight"] == f"Bottom {rank} : {strike_value}"
 
 
 def test_tex_highlight_marks_top_strikes():
@@ -271,6 +306,33 @@ def test_call_and_put_tex_highlights_mark_most_negative():
     for rank, idx in enumerate(top_put_indices, start=1):
         strike_value = _format_strike(metrics.at[idx, "Strike"])
         assert metrics.at[idx, "Put_TEX_Highlight"] == f"Top {rank} : {strike_value}"
+
+
+def test_ivxoi_highlights_mark_top_values():
+    df = _build_sample_frame()
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+        iv_direction="up",
+    )
+
+    call_highlighted = metrics.loc[metrics["Call_IVxOI_Highlight"] != ""]
+    put_highlighted = metrics.loc[metrics["Put_IVxOI_Highlight"] != ""]
+
+    top_call_indices = metrics["Call_IVxOI"].nlargest(4).index
+    top_put_indices = metrics["Put_IVxOI"].nlargest(4).index
+
+    assert set(call_highlighted.index) == set(top_call_indices)
+    assert set(put_highlighted.index) == set(top_put_indices)
+
+    for rank, idx in enumerate(top_call_indices, start=1):
+        strike_value = _format_strike(metrics.at[idx, "Strike"])
+        assert metrics.at[idx, "Call_IVxOI_Highlight"] == f"Top {rank} : {strike_value}"
+
+    for rank, idx in enumerate(top_put_indices, start=1):
+        strike_value = _format_strike(metrics.at[idx, "Strike"])
+        assert metrics.at[idx, "Put_IVxOI_Highlight"] == f"Top {rank} : {strike_value}"
 
 
 def test_invalid_direction_raises_error():
