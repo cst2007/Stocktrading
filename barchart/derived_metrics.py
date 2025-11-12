@@ -248,22 +248,30 @@ def compute_derived_metrics(
         call_count = int(metrics["Call_Vanna"].count())
         if call_count:
             call_top = metrics["Call_Vanna"].nlargest(min(3, call_count)).index
-            metrics.loc[call_top, "Call_Vanna_Highlight"] = "highlight"
+            metrics.loc[call_top, "Call_Vanna_Highlight"] = (
+                metrics.loc[call_top, "Strike"].astype(str)
+            )
 
         put_count = int(metrics["Put_Vanna"].count())
         if put_count:
             put_top = metrics["Put_Vanna"].nlargest(min(3, put_count)).index
-            metrics.loc[put_top, "Put_Vanna_Highlight"] = "highlight"
+            metrics.loc[put_top, "Put_Vanna_Highlight"] = (
+                metrics.loc[put_top, "Strike"].astype(str)
+            )
 
         net_count = int(metrics["Net_GEX"].count())
         if net_count:
             net_top = metrics["Net_GEX"].nlargest(min(3, net_count)).index
-            metrics.loc[net_top, "Net_GEX_Highlight"] = "highlight"
+            metrics.loc[net_top, "Net_GEX_Highlight"] = (
+                metrics.loc[net_top, "Strike"].astype(str)
+            )
 
         dex_count = int(metrics["Net_DEX"].count())
         if dex_count:
             dex_top = metrics["Net_DEX"].nlargest(min(5, dex_count)).index
-            metrics.loc[dex_top, "DEX_highlight"] = "highlight"
+            metrics.loc[dex_top, "DEX_highlight"] = (
+                metrics.loc[dex_top, "Strike"].astype(str)
+            )
 
         activity_metric = pd.Series([0.0] * len(metrics), index=metrics.index, dtype="Float64")
         if "call_volume" in unified_df.columns or "puts_volume" in unified_df.columns:
