@@ -574,7 +574,7 @@ class BarchartOptionsAnalyzer:
             )
             df.loc[put_mask, "vanna"] = (
                 df.loc[put_mask, "open_interest"]
-                * (1 - df.loc[put_mask, "delta"])
+                * df.loc[put_mask, "delta"]
                 * df.loc[put_mask, "vega"]
                 * 100
             )

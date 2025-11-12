@@ -159,7 +159,7 @@ def combine_option_files(
     )
     merged["puts_vanna"] = (
         merged["puts_open_interest"]
-        * (1 - merged["puts_delta"])
+        * merged["puts_delta"]
         * merged["puts_vega"]
         * 100
     )
