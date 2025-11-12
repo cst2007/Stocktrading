@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Sequence
 
 import pandas as pd
 
@@ -36,6 +37,21 @@ DERIVED_CSV_HEADER = [
     "Call_Vanna_Highlight",
     "Net_GEX_Highlight",
 ]
+
+TOTAL_SUM_COLUMNS = {
+    "Call_Vanna",
+    "Put_Vanna",
+    "Net_Vanna",
+    "Call_GEX",
+    "Put_GEX",
+    "Net_GEX",
+    "Call_DEX",
+    "Put_DEX",
+    "Net_DEX",
+    "Call_IVxOI",
+    "Put_IVxOI",
+    "IVxOI",
+}
 
 
 def _format_timestamp(timestamp: datetime) -> str:
@@ -113,6 +129,8 @@ def compute_derived_metrics(
     calculation_time: datetime,
     spot_price: float | None = None,
     iv_direction: str = "down",
+    drop_columns: Sequence[str] | None = None,
+    include_totals_row: bool = False,
 ) -> pd.DataFrame:
     """Return the Phase 1 derived exposure metrics for ``unified_df``."""
 
@@ -257,7 +275,37 @@ def compute_derived_metrics(
     metrics.attrs["median_ivxoi"] = median_ivxoi
     metrics.attrs["iv_direction"] = direction_value
 
-    return metrics[DERIVED_CSV_HEADER]
+    drop_set = {column for column in (drop_columns or []) if column in metrics.columns}
+    if drop_set:
+        metrics = metrics.drop(columns=sorted(drop_set))
+
+    column_order = [column for column in DERIVED_CSV_HEADER if column in metrics.columns]
+    result = metrics.loc[:, column_order].copy()
+
+    has_totals = False
+    if include_totals_row and not result.empty:
+        base_rows = result.copy()
+        totals_row: dict[str, object] = {}
+        for column in result.columns:
+            if column == "Strike":
+                totals_row[column] = "Total"
+                continue
+            if column in TOTAL_SUM_COLUMNS:
+                numeric_series = pd.to_numeric(base_rows[column], errors="coerce")
+                total_value = numeric_series.sum(skipna=True)
+                if pd.isna(total_value):
+                    totals_row[column] = ""
+                else:
+                    totals_row[column] = round(float(total_value), 2)
+            else:
+                totals_row[column] = ""
+        result = pd.concat([result, pd.DataFrame([totals_row])], ignore_index=True)
+        has_totals = True
+
+    result.attrs.update(metrics.attrs)
+    result.attrs["has_totals_row"] = has_totals
+
+    return result
 
 
 __all__ = ["DERIVED_CSV_HEADER", "compute_derived_metrics"]

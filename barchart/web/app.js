@@ -81,10 +81,15 @@ function renderPairs(pairs) {
     const input = card.querySelector('.spot-input');
     const ivDirectionSelect = card.querySelector('.iv-direction-input');
     const insightsToggle = card.querySelector('.insights-checkbox');
+    const spxToggle = card.querySelector('.spx-checkbox');
     const insightsNote = card.querySelector('.insights-note');
 
     if (insightsToggle) {
       insightsToggle.checked = false;
+    }
+
+    if (spxToggle) {
+      spxToggle.checked = false;
     }
 
     if (insightsNote) {
@@ -98,14 +103,28 @@ function renderPairs(pairs) {
     }
 
     processButton.addEventListener('click', () => {
-      handleProcess(pair, input, ivDirectionSelect, processButton, insightsToggle);
+      handleProcess(
+        pair,
+        input,
+        ivDirectionSelect,
+        processButton,
+        insightsToggle,
+        spxToggle,
+      );
     });
 
     pairsContainer.appendChild(fragment);
   });
 }
 
-async function handleProcess(pair, input, ivDirectionSelect, button, insightsToggle) {
+async function handleProcess(
+  pair,
+  input,
+  ivDirectionSelect,
+  button,
+  insightsToggle,
+  spxToggle,
+) {
   const value = input.value.trim();
   if (!value) {
     input.focus();
@@ -128,6 +147,7 @@ async function handleProcess(pair, input, ivDirectionSelect, button, insightsTog
   }
 
   const generateInsights = Boolean(insightsToggle?.checked);
+  const excludeSpxColumns = Boolean(spxToggle?.checked);
 
   button.disabled = true;
   button.textContent = 'Processing…';
@@ -144,6 +164,7 @@ async function handleProcess(pair, input, ivDirectionSelect, button, insightsTog
         spot_price: spotPrice,
         iv_direction: ivDirection,
         generate_insights: generateInsights,
+        exclude_spx_columns: excludeSpxColumns,
       }),
     });
 
@@ -165,6 +186,7 @@ async function handleProcess(pair, input, ivDirectionSelect, button, insightsTog
         processedAt: new Date().toISOString(),
         result,
         generateInsights,
+        excludeSpxColumns,
       }),
     );
 

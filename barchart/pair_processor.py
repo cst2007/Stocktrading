@@ -13,7 +13,7 @@ from typing import Dict, List, Sequence
 from .analyzer import BarchartOptionsAnalyzer, ProcessingResult
 from .ai_insights import AIInsightsConfigurationError, generate_ai_insight
 from .combiner import COMBINED_CSV_HEADER, combine_option_files
-from .derived_metrics import DERIVED_CSV_HEADER, compute_derived_metrics
+from .derived_metrics import compute_derived_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +155,7 @@ def process_pair(
     contract_multiplier: float = 100.0,
     create_charts: bool = False,
     enable_insights: bool = False,
+    exclude_spx_columns: bool = False,
 ) -> Dict[str, object]:
     """Combine and analyze ``pair``, then move the inputs into ``processed_directory``."""
 
@@ -182,11 +183,25 @@ def process_pair(
     derived_dir = output_directory / "derived"
     derived_dir.mkdir(parents=True, exist_ok=True)
     calculation_time = datetime.now(timezone.utc)
+    spx_exclusions = (
+        {
+            "Energy_Score",
+            "Regime",
+            "Dealer_Bias",
+            "IV_Direction",
+            "Rel_Dist",
+            "Top5_Regime_Energy_Bias",
+        }
+        if exclude_spx_columns
+        else None
+    )
     derived_df = compute_derived_metrics(
         combined_df,
         calculation_time=calculation_time,
         spot_price=spot_price,
         iv_direction=iv_direction,
+        drop_columns=spx_exclusions,
+        include_totals_row=True,
     )
     safe_ticker = pair.ticker.replace("/", "-") or "unknown"
     safe_expiry = (
@@ -197,7 +212,7 @@ def process_pair(
         f"{calculation_time.strftime('%Y%m%dT%H%M%SZ')}.csv"
     )
     derived_path = derived_dir / derived_filename
-    derived_df.to_csv(derived_path, index=False, header=DERIVED_CSV_HEADER)
+    derived_df.to_csv(derived_path, index=False)
 
     insights_dir = derived_dir / "insights"
     insights_info: Dict[str, object] | None = None
