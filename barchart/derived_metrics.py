@@ -245,33 +245,20 @@ def compute_derived_metrics(
     metrics["Top5_Regime_Energy_Bias"] = ""
 
     if not metrics.empty:
-        call_count = int(metrics["Call_Vanna"].count())
-        if call_count:
-            call_top = metrics["Call_Vanna"].nlargest(min(3, call_count)).index
-            metrics.loc[call_top, "Call_Vanna_Highlight"] = (
-                metrics.loc[call_top, "Strike"].astype(str)
-            )
+        def _set_ranked_highlights(value_column: str, highlight_column: str, top_n: int) -> None:
+            count = int(metrics[value_column].count())
+            if not count:
+                return
 
-        put_count = int(metrics["Put_Vanna"].count())
-        if put_count:
-            put_top = metrics["Put_Vanna"].nlargest(min(3, put_count)).index
-            metrics.loc[put_top, "Put_Vanna_Highlight"] = (
-                metrics.loc[put_top, "Strike"].astype(str)
-            )
+            ranked_indices = metrics[value_column].nlargest(min(top_n, count)).index
+            for rank, idx in enumerate(ranked_indices, start=1):
+                strike_value = _format_strike(metrics.at[idx, "Strike"])
+                metrics.at[idx, highlight_column] = f"Top {rank} : {strike_value}"
 
-        net_count = int(metrics["Net_GEX"].count())
-        if net_count:
-            net_top = metrics["Net_GEX"].nlargest(min(3, net_count)).index
-            metrics.loc[net_top, "Net_GEX_Highlight"] = (
-                metrics.loc[net_top, "Strike"].astype(str)
-            )
-
-        dex_count = int(metrics["Net_DEX"].count())
-        if dex_count:
-            dex_top = metrics["Net_DEX"].nlargest(min(5, dex_count)).index
-            metrics.loc[dex_top, "DEX_highlight"] = (
-                metrics.loc[dex_top, "Strike"].astype(str)
-            )
+        _set_ranked_highlights("Call_Vanna", "Call_Vanna_Highlight", top_n=4)
+        _set_ranked_highlights("Put_Vanna", "Put_Vanna_Highlight", top_n=4)
+        _set_ranked_highlights("Net_GEX", "Net_GEX_Highlight", top_n=4)
+        _set_ranked_highlights("Net_DEX", "DEX_highlight", top_n=5)
 
         activity_metric = pd.Series([0.0] * len(metrics), index=metrics.index, dtype="Float64")
         if "call_volume" in unified_df.columns or "puts_volume" in unified_df.columns:
