@@ -130,6 +130,49 @@ def test_top5_column_only_populated_for_top_five():
     assert lowest_activity_row["Top5_Regime_Energy_Bias"] == ""
 
 
+def test_totals_row_is_appended_when_requested():
+    df = _build_sample_frame()
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+        iv_direction="up",
+        include_totals_row=True,
+    )
+
+    totals_row = metrics.iloc[-1]
+    assert totals_row["Strike"] == "Total"
+    assert totals_row["Call_Vanna_Highlight"] == ""
+
+    data_only = metrics.iloc[:-1]
+    expected_net_gex_total = pd.to_numeric(data_only["Net_GEX"], errors="coerce").sum()
+    assert totals_row["Net_GEX"] == pytest.approx(round(expected_net_gex_total, 2))
+
+
+def test_columns_can_be_dropped_from_output():
+    df = _build_sample_frame()
+    exclusions = {
+        "Energy_Score",
+        "Regime",
+        "Dealer_Bias",
+        "IV_Direction",
+        "Rel_Dist",
+        "Top5_Regime_Energy_Bias",
+    }
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+        iv_direction="up",
+        drop_columns=exclusions,
+        include_totals_row=True,
+    )
+
+    for column in exclusions:
+        assert column not in metrics.columns
+    assert "Net_GEX" in metrics.columns
+
+
 def test_invalid_direction_raises_error():
     df = _build_sample_frame()
     with pytest.raises(ValueError):

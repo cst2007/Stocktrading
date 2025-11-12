@@ -149,16 +149,28 @@ def summarize_metrics(
 ) -> InsightMetrics:
     """Return aggregated metrics for prompt construction."""
 
+    if "Strike" in derived_df.columns:
+        base_derived = derived_df.loc[
+            derived_df["Strike"].astype(str).str.lower() != "total"
+        ]
+    else:
+        base_derived = derived_df
+
+    def _sum_numeric(series: pd.Series | None) -> float:
+        if series is None:
+            return 0.0
+        return float(pd.to_numeric(series, errors="coerce").fillna(0).sum())
+
     call_oi = int(float(combined_df["call_open_interest"].fillna(0).sum()))
     put_oi = int(float(combined_df["puts_open_interest"].fillna(0).sum()))
 
     avg_call_delta = _ensure_float(combined_df["call_delta"].mean())
     avg_put_delta = _ensure_float(combined_df["puts_delta"].mean())
 
-    net_vanna = float(derived_df["net_Vanna"].fillna(0).sum())
-    net_gex = float(derived_df["net_GEX"].fillna(0).sum())
-    if "net_DEX" in derived_df:
-        net_dex_total = float(derived_df["net_DEX"].fillna(0).sum())
+    net_vanna = _sum_numeric(base_derived.get("net_Vanna"))
+    net_gex = _sum_numeric(base_derived.get("net_GEX"))
+    if "net_DEX" in base_derived:
+        net_dex_total = _sum_numeric(base_derived["net_DEX"])
     else:
         net_dex_total = float(derived_df.attrs.get("total_net_DEX", 0.0))
 
@@ -174,24 +186,28 @@ def summarize_metrics(
         vanna_gex_total = net_vanna / net_gex if net_gex else None
 
     iv_direction = ""
-    if "IV_Direction" in derived_df.columns:
-        direction_series = derived_df["IV_Direction"].dropna().astype(str)
+    if "IV_Direction" in base_derived.columns:
+        direction_series = base_derived["IV_Direction"].dropna().astype(str)
         if not direction_series.empty:
             iv_direction = direction_series.iloc[0]
 
     energy_score = ""
     dealer_bias = ""
-    if {"IVxOI", "Energy_Score", "Dealer_Bias"}.issubset(derived_df.columns):
-        ivxoi_series = pd.to_numeric(derived_df["IVxOI"], errors="coerce")
+    if {"IVxOI", "Energy_Score", "Dealer_Bias"}.issubset(base_derived.columns):
+        ivxoi_series = pd.to_numeric(base_derived["IVxOI"], errors="coerce")
         if not ivxoi_series.dropna().empty:
             top_index = ivxoi_series.idxmax()
-            energy_score = str(derived_df.at[top_index, "Energy_Score"])
-            dealer_bias = str(derived_df.at[top_index, "Dealer_Bias"])
+            energy_score = str(base_derived.at[top_index, "Energy_Score"])
+            dealer_bias = str(base_derived.at[top_index, "Dealer_Bias"])
 
     min_strike = float(combined_df["Strike"].min()) if not combined_df.empty else 0.0
     max_strike = float(combined_df["Strike"].max()) if not combined_df.empty else 0.0
 
-    timestamp_value = derived_df["DateTime"].dropna().iloc[0] if "DateTime" in derived_df else None
+    timestamp_value = None
+    if "DateTime" in base_derived.columns and not base_derived["DateTime"].dropna().empty:
+        timestamp_value = base_derived["DateTime"].dropna().iloc[0]
+    elif "DateTime" in derived_df and not derived_df["DateTime"].dropna().empty:
+        timestamp_value = derived_df["DateTime"].dropna().iloc[0]
 
     return InsightMetrics(
         timestamp=_format_timestamp(timestamp_value),

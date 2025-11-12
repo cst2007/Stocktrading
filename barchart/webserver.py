@@ -207,6 +207,7 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
             return
 
         generate_insights = bool(payload.get("generate_insights"))
+        exclude_spx_columns = bool(payload.get("exclude_spx_columns"))
         if generate_insights and not (self.state.openai_api_key or os.getenv("OPENAI_API_KEY")):
             self._send_json(
                 {
@@ -237,6 +238,7 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
                 contract_multiplier=self.state.contract_multiplier,
                 create_charts=self.state.create_charts,
                 enable_insights=generate_insights,
+                exclude_spx_columns=exclude_spx_columns,
             )
         except Exception as exc:  # pragma: no cover - surfaced via HTTP response
             self._send_json({"error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -253,6 +255,7 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
             "processedAt": processed_at,
             "result": result_payload,
             "generateInsights": generate_insights,
+            "excludeSpxColumns": exclude_spx_columns,
         }
 
         try:
