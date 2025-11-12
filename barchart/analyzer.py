@@ -957,8 +957,8 @@ class BarchartOptionsAnalyzer:
 
         combined_df["Strike"] = pd.to_numeric(combined_df["Strike"], errors="coerce")
         combined_df = combined_df.sort_values(
-            by=["Run_Timestamp", "Strike"],
-            ascending=[True, False],
+            by=["Ticker", "Strike", "Run_Timestamp"],
+            ascending=[True, True, True],
             ignore_index=True,
         )
 
@@ -967,15 +967,25 @@ class BarchartOptionsAnalyzer:
             for column in combined_df.columns
             if column not in {"Ticker", "Expiry", "Run_Timestamp"}
         ]
+
+        def _format_numeric(value: float) -> str:
+            if pd.isna(value):
+                return ""
+            formatted = f"{value:,.2f}"
+            if "." in formatted:
+                formatted = formatted.rstrip("0").rstrip(".")
+            return formatted
+
+        formatted_df = combined_df.copy()
         for column in numeric_columns:
-            combined_df[column] = pd.to_numeric(
+            numeric_series = pd.to_numeric(
                 combined_df[column], errors="coerce"
             ).round(2)
+            formatted_df[column] = numeric_series.apply(_format_numeric)
 
-        combined_df.to_csv(
+        formatted_df.to_csv(
             highlight_log_path,
             index=False,
-            float_format="%.2f",
             na_rep="",
         )
         logger.info("Updated highlight log CSV at %s", highlight_log_path)
