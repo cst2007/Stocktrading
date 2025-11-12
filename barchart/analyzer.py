@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 import logging
 import re
@@ -19,6 +20,18 @@ except ImportError:  # pragma: no cover - handled at runtime
 from .database import AnalyticsDatabase
 
 logger = logging.getLogger(__name__)
+
+HIGHLIGHT_METRIC_MAP = {
+    "Net_DEX": "DEX_highlight",
+    "Call_Vanna": "Call_Vanna_Highlight",
+    "Put_Vanna": "Put_Vanna_Highlight",
+    "Net_GEX": "Net_GEX_Highlight",
+    "Call_TEX": "Call_TEX_Highlight",
+    "Put_TEX": "Put_TEX_Highlight",
+    "Net_TEX": "TEX_highlight",
+    "Call_IVxOI": "Call_IVxOI_Highlight",
+    "Put_IVxOI": "Put_IVxOI_Highlight",
+}
 
 
 def _normalize_iv_direction(value: str | None) -> str:
@@ -816,6 +829,8 @@ class BarchartOptionsAnalyzer:
         per_strike_df.to_csv(csv_path, index=False)
         logger.info("Wrote per-strike CSV to %s", csv_path)
 
+        self._update_highlight_log(result, safe_suffix)
+
         self._persist_to_database(result)
 
         if self.create_charts and plt is not None:
@@ -825,6 +840,74 @@ class BarchartOptionsAnalyzer:
                 "matplotlib is not available; skipping chart generation for %s",
                 result.source_path,
             )
+
+    def _update_highlight_log(self, result: ProcessingResult, safe_suffix: str) -> None:
+        summary = result.strike_summary_df
+        if summary.empty:
+            logger.debug("No strike data available for highlight logging")
+            return
+
+        highlight_columns = [column for column in HIGHLIGHT_METRIC_MAP.values() if column in summary.columns]
+        if not highlight_columns:
+            logger.debug("No highlight columns present in strike summary; skipping highlight log")
+            return
+
+        highlight_mask = summary[highlight_columns].fillna("").ne("").any(axis=1)
+        if not highlight_mask.any():
+            logger.debug("No highlights detected for %s %s; skipping highlight log", result.ticker, result.expiry)
+            return
+
+        highlighted_rows = summary.loc[highlight_mask].copy()
+        strike_series = pd.to_numeric(pd.Series(highlighted_rows.index, index=highlighted_rows.index), errors="coerce")
+        highlighted_rows["_strike"] = strike_series
+        highlighted_rows = highlighted_rows.loc[highlighted_rows["_strike"].notna()]
+        if highlighted_rows.empty:
+            logger.debug("Highlight rows contained no numeric strikes; skipping highlight log")
+            return
+
+        timestamp_series = highlighted_rows.get("DateTime")
+        if timestamp_series is None:
+            timestamp_value = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+            timestamp_series = pd.Series([timestamp_value] * len(highlighted_rows), index=highlighted_rows.index)
+        else:
+            timestamp_series = timestamp_series.astype(str)
+
+        log_length = len(highlighted_rows)
+        log_data: Dict[str, List[object]] = {
+            "Ticker": [result.ticker] * log_length,
+            "Expiry": [result.expiry] * log_length,
+            "Run_Timestamp": timestamp_series.tolist(),
+            "Strike": highlighted_rows["_strike"].astype(float).tolist(),
+        }
+
+        for metric, highlight_column in HIGHLIGHT_METRIC_MAP.items():
+            if metric not in highlighted_rows.columns or highlight_column not in highlighted_rows.columns:
+                log_data[metric] = [pd.NA] * log_length
+                continue
+            values = pd.to_numeric(highlighted_rows[metric], errors="coerce")
+            highlight_flags = highlighted_rows[highlight_column].fillna("")
+            filtered_values = values.where(highlight_flags != "", pd.NA)
+            log_data[metric] = filtered_values.tolist()
+
+        log_df = pd.DataFrame(log_data)
+        log_df = log_df.sort_values("Strike", ascending=False).reset_index(drop=True)
+
+        highlight_log_path = result.output_directory / f"{safe_suffix}_highlight_log.csv"
+        if highlight_log_path.exists():
+            existing_df = pd.read_csv(highlight_log_path)
+            combined_df = pd.concat([existing_df, log_df], ignore_index=True, sort=False)
+            combined_df = combined_df.reindex(columns=log_df.columns)
+        else:
+            combined_df = log_df
+
+        combined_df["Strike"] = pd.to_numeric(combined_df["Strike"], errors="coerce")
+        combined_df = combined_df.sort_values(
+            by=["Run_Timestamp", "Strike"],
+            ascending=[True, False],
+            ignore_index=True,
+        )
+        combined_df.to_csv(highlight_log_path, index=False)
+        logger.info("Updated highlight log CSV at %s", highlight_log_path)
 
     def _persist_to_database(self, result: ProcessingResult) -> None:
         if not result.strike_type_metrics:
