@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover - handled at runtime
     plt = None
 
 from .database import AnalyticsDatabase
+from .derived_metrics import apply_highlight_annotations
 
 logger = logging.getLogger(__name__)
 
@@ -640,6 +641,22 @@ class BarchartOptionsAnalyzer:
         gex_by_strike = df.groupby("strike")["gex"].sum().sort_index()
         vanna_by_strike = df.groupby("strike")["vanna"].sum().sort_index()
 
+        can_compute_dex = {"delta", "open_interest"}.issubset(df.columns)
+        if can_compute_dex:
+            delta_series = pd.to_numeric(df["delta"], errors="coerce").fillna(0.0)
+            oi_series = pd.to_numeric(df["open_interest"], errors="coerce").fillna(0.0)
+            df["dex"] = delta_series * oi_series * contract_multiplier
+        else:
+            df["dex"] = pd.NA
+
+        can_compute_tex = {"theta", "open_interest"}.issubset(df.columns)
+        if can_compute_tex:
+            theta_series = pd.to_numeric(df["theta"], errors="coerce").fillna(0.0)
+            oi_series = pd.to_numeric(df["open_interest"], errors="coerce").fillna(0.0)
+            df["tex"] = theta_series * oi_series * contract_multiplier
+        else:
+            df["tex"] = pd.NA
+
         df["ivxoi"] = df["iv"].fillna(0) * df["open_interest"].fillna(0)
 
         agg_kwargs = {
@@ -651,6 +668,10 @@ class BarchartOptionsAnalyzer:
         }
         if "volume" in df.columns:
             agg_kwargs["volume_sum"] = ("volume", "sum")
+        if can_compute_dex:
+            agg_kwargs["dex_sum"] = ("dex", "sum")
+        if can_compute_tex:
+            agg_kwargs["tex_sum"] = ("tex", "sum")
 
         grouped = df.groupby(["strike", "option_type"]).agg(**agg_kwargs).reset_index()
 
@@ -673,14 +694,21 @@ class BarchartOptionsAnalyzer:
         call_stats = grouped[grouped["option_type"] == "call"].set_index("strike")
         put_stats = grouped[grouped["option_type"] == "put"].set_index("strike")
 
-        def _side_series(stats: pd.DataFrame, column: str) -> pd.Series:
+        def _side_series(
+            stats: pd.DataFrame,
+            column: str,
+            *,
+            default_value: float | object = 0.0,
+        ) -> pd.Series:
             if column not in stats.columns:
-                return pd.Series(0.0, index=summary.index, dtype="Float64")
-            return (
-                stats[column]
-                .reindex(summary.index, fill_value=0.0)
-                .astype(float)
-            )
+                if default_value is pd.NA:
+                    return pd.Series(pd.NA, index=summary.index, dtype="Float64")
+                return pd.Series(default_value, index=summary.index, dtype="Float64")
+            series = pd.to_numeric(stats[column], errors="coerce")
+            reindexed = series.reindex(summary.index)
+            if default_value is not pd.NA:
+                reindexed = reindexed.fillna(default_value)
+            return reindexed.astype("Float64")
 
         summary["Call_GEX"] = _side_series(call_stats, "gex_sum")
         summary["Put_GEX"] = _side_series(put_stats, "gex_sum")
@@ -692,9 +720,19 @@ class BarchartOptionsAnalyzer:
         summary["Put_Volume"] = _side_series(put_stats, "volume_sum")
         summary["Call_OI"] = _side_series(call_stats, "open_interest_sum")
         summary["Put_OI"] = _side_series(put_stats, "open_interest_sum")
+        summary["Call_DEX"] = _side_series(call_stats, "dex_sum", default_value=pd.NA)
+        summary["Put_DEX"] = _side_series(put_stats, "dex_sum", default_value=pd.NA)
+        summary["Call_TEX"] = _side_series(call_stats, "tex_sum", default_value=pd.NA)
+        summary["Put_TEX"] = _side_series(put_stats, "tex_sum", default_value=pd.NA)
 
         summary["Net_GEX"] = summary["Call_GEX"] + summary["Put_GEX"]
         summary["Net_Vanna"] = summary["Call_Vanna"] + summary["Put_Vanna"]
+        dex_totals = summary[["Call_DEX", "Put_DEX"]].apply(pd.to_numeric, errors="coerce")
+        summary["Net_DEX"] = dex_totals.sum(axis=1, min_count=1).astype("Float64")
+        tex_totals = summary[["Call_TEX", "Put_TEX"]].apply(pd.to_numeric, errors="coerce")
+        summary["Net_TEX"] = tex_totals.sum(axis=1, min_count=1).astype("Float64")
+        for column in ("Call_DEX", "Put_DEX", "Net_DEX", "Call_TEX", "Put_TEX", "Net_TEX"):
+            summary[column] = summary[column].round(1)
         summary["IVxOI"] = (summary["Call_IVxOI"] + summary["Put_IVxOI"]).round(1)
 
         call_ratio_denom = summary["Call_GEX"].replace({0: pd.NA})
@@ -735,7 +773,16 @@ class BarchartOptionsAnalyzer:
         else:
             summary["Rel_Dist"] = pd.Series(pd.NA, index=summary.index, dtype="Float64")
 
+        timestamp_value = (
+            datetime.now(timezone.utc)
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
+        summary["DateTime"] = timestamp_value
+
         summary["Top5_Regime_Energy_Bias"] = ""
+        apply_highlight_annotations(summary)
         activity = summary["Call_Volume"] + summary["Put_Volume"]
         if activity.isna().all() or activity.sum() == 0:
             activity = summary["Call_OI"] + summary["Put_OI"]
