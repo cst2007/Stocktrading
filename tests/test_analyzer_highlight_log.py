@@ -92,7 +92,7 @@ def test_highlight_log_records_highlighted_values(tmp_path):
 
     analyzer._write_outputs(result)
 
-    highlight_path = tmp_path / "TEST_2024-05-17_highlight_log.csv"
+    highlight_path = tmp_path / "highlight_logs" / "TEST_highlight_log.csv"
     assert highlight_path.exists()
 
     log_df = pd.read_csv(highlight_path)

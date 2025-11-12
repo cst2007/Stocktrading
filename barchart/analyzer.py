@@ -892,7 +892,10 @@ class BarchartOptionsAnalyzer:
         log_df = pd.DataFrame(log_data)
         log_df = log_df.sort_values("Strike", ascending=False).reset_index(drop=True)
 
-        highlight_log_path = result.output_directory / f"{safe_suffix}_highlight_log.csv"
+        safe_ticker = re.sub(r"[^A-Za-z0-9_.-]", "_", result.ticker)
+        highlight_log_dir = result.output_directory / "highlight_logs"
+        highlight_log_dir.mkdir(parents=True, exist_ok=True)
+        highlight_log_path = highlight_log_dir / f"{safe_ticker}_highlight_log.csv"
         if highlight_log_path.exists():
             existing_df = pd.read_csv(highlight_log_path)
             combined_df = pd.concat([existing_df, log_df], ignore_index=True, sort=False)
