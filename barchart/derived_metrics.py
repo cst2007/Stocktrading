@@ -245,18 +245,34 @@ def compute_derived_metrics(
     metrics["Top5_Regime_Energy_Bias"] = ""
 
     if not metrics.empty:
-        def _set_ranked_highlights(value_column: str, highlight_column: str, top_n: int) -> None:
+        def _set_ranked_highlights(
+            value_column: str,
+            highlight_column: str,
+            top_n: int,
+            *,
+            use_nsmallest: bool = False,
+        ) -> None:
             count = int(metrics[value_column].count())
             if not count:
                 return
 
-            ranked_indices = metrics[value_column].nlargest(min(top_n, count)).index
+            series = metrics[value_column]
+            limit = min(top_n, count)
+            if use_nsmallest:
+                ranked_indices = series.nsmallest(limit).index
+            else:
+                ranked_indices = series.nlargest(limit).index
             for rank, idx in enumerate(ranked_indices, start=1):
                 strike_value = _format_strike(metrics.at[idx, "Strike"])
                 metrics.at[idx, highlight_column] = f"Top {rank} : {strike_value}"
 
         _set_ranked_highlights("Call_Vanna", "Call_Vanna_Highlight", top_n=4)
-        _set_ranked_highlights("Put_Vanna", "Put_Vanna_Highlight", top_n=4)
+        _set_ranked_highlights(
+            "Put_Vanna",
+            "Put_Vanna_Highlight",
+            top_n=4,
+            use_nsmallest=True,
+        )
         _set_ranked_highlights("Net_GEX", "Net_GEX_Highlight", top_n=4)
         _set_ranked_highlights("Net_DEX", "DEX_highlight", top_n=5)
 
