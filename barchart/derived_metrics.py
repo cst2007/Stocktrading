@@ -136,6 +136,118 @@ def _dealer_bias(row: pd.Series, iv_direction: str) -> str:
     return "Neutral / Mean Reversion"
 
 
+def apply_highlight_annotations(metrics: pd.DataFrame) -> None:
+    """Populate highlight columns for the most notable strike metrics."""
+
+    highlight_columns = [
+        "Call_Vanna_Highlight",
+        "Put_Vanna_Highlight",
+        "Net_GEX_Highlight",
+        "DEX_highlight",
+        "Call_TEX_Highlight",
+        "Put_TEX_Highlight",
+        "TEX_highlight",
+        "Call_IVxOI_Highlight",
+        "Put_IVxOI_Highlight",
+    ]
+
+    for column in highlight_columns:
+        if column not in metrics.columns:
+            metrics[column] = ""
+        else:
+            metrics[column] = ""
+
+    if metrics.empty:
+        return
+
+    def _strike_label(idx: object) -> str:
+        if "Strike" in metrics.columns:
+            strike_value = metrics.at[idx, "Strike"]
+        else:
+            strike_value = idx
+        strike_numeric = pd.to_numeric(
+            pd.Series([strike_value], dtype="object"), errors="coerce"
+        ).iloc[0]
+        return _format_strike(strike_numeric)
+
+    def _set_ranked_highlights(
+        value_column: str,
+        highlight_column: str,
+        top_n: int,
+        *,
+        use_nsmallest: bool = False,
+        label: str = "Top",
+        exclude_indices: Collection | None = None,
+    ) -> list:
+        if value_column not in metrics.columns or highlight_column not in metrics.columns:
+            return []
+
+        series = pd.to_numeric(metrics[value_column], errors="coerce")
+        series = series.dropna()
+        if series.empty:
+            return []
+
+        limit = min(top_n, len(series))
+        ranked_indices = (
+            series.nsmallest(limit).index if use_nsmallest else series.nlargest(limit).index
+        )
+        excluded = set(exclude_indices or [])
+        used_indices: list = []
+        for rank, idx in enumerate(ranked_indices, start=1):
+            if idx in excluded:
+                continue
+            strike_value = _strike_label(idx)
+            metrics.at[idx, highlight_column] = f"{label} {rank} : {strike_value}"
+            used_indices.append(idx)
+        return used_indices
+
+    _set_ranked_highlights("Call_Vanna", "Call_Vanna_Highlight", top_n=4)
+    _set_ranked_highlights(
+        "Put_Vanna",
+        "Put_Vanna_Highlight",
+        top_n=4,
+        use_nsmallest=True,
+    )
+    top_net_gex = _set_ranked_highlights("Net_GEX", "Net_GEX_Highlight", top_n=4)
+    _set_ranked_highlights(
+        "Net_GEX",
+        "Net_GEX_Highlight",
+        top_n=4,
+        use_nsmallest=True,
+        label="Bottom",
+        exclude_indices=top_net_gex,
+    )
+    top_net_dex = _set_ranked_highlights("Net_DEX", "DEX_highlight", top_n=4)
+    _set_ranked_highlights(
+        "Net_DEX",
+        "DEX_highlight",
+        top_n=4,
+        use_nsmallest=True,
+        label="Bottom",
+        exclude_indices=top_net_dex,
+    )
+    _set_ranked_highlights(
+        "Call_TEX",
+        "Call_TEX_Highlight",
+        top_n=5,
+        use_nsmallest=True,
+    )
+    _set_ranked_highlights(
+        "Put_TEX",
+        "Put_TEX_Highlight",
+        top_n=5,
+        use_nsmallest=True,
+    )
+    _set_ranked_highlights(
+        "Net_TEX",
+        "TEX_highlight",
+        top_n=5,
+        use_nsmallest=True,
+    )
+    _set_ranked_highlights("Call_IVxOI", "Call_IVxOI_Highlight", top_n=4)
+    _set_ranked_highlights("Put_IVxOI", "Put_IVxOI_Highlight", top_n=4)
+
+
 def compute_derived_metrics(
     unified_df: pd.DataFrame,
     *,
@@ -282,79 +394,7 @@ def compute_derived_metrics(
     metrics["Top5_Regime_Energy_Bias"] = ""
 
     if not metrics.empty:
-        def _set_ranked_highlights(
-            value_column: str,
-            highlight_column: str,
-            top_n: int,
-            *,
-            use_nsmallest: bool = False,
-            label: str = "Top",
-            exclude_indices: Collection | None = None,
-        ) -> list:
-            count = int(metrics[value_column].count())
-            if not count:
-                return []
-
-            series = metrics[value_column]
-            limit = min(top_n, count)
-            if use_nsmallest:
-                ranked_indices = series.nsmallest(limit).index
-            else:
-                ranked_indices = series.nlargest(limit).index
-            excluded = set(exclude_indices or [])
-            used_indices: list = []
-            filtered_indices = [idx for idx in ranked_indices if idx not in excluded]
-            for rank, idx in enumerate(filtered_indices, start=1):
-                strike_value = _format_strike(metrics.at[idx, "Strike"])
-                metrics.at[idx, highlight_column] = f"{label} {rank} : {strike_value}"
-                used_indices.append(idx)
-            return used_indices
-
-        _set_ranked_highlights("Call_Vanna", "Call_Vanna_Highlight", top_n=4)
-        _set_ranked_highlights(
-            "Put_Vanna",
-            "Put_Vanna_Highlight",
-            top_n=4,
-            use_nsmallest=True,
-        )
-        top_net_gex = _set_ranked_highlights("Net_GEX", "Net_GEX_Highlight", top_n=4)
-        _set_ranked_highlights(
-            "Net_GEX",
-            "Net_GEX_Highlight",
-            top_n=4,
-            use_nsmallest=True,
-            label="Bottom",
-            exclude_indices=top_net_gex,
-        )
-        top_net_dex = _set_ranked_highlights("Net_DEX", "DEX_highlight", top_n=4)
-        _set_ranked_highlights(
-            "Net_DEX",
-            "DEX_highlight",
-            top_n=4,
-            use_nsmallest=True,
-            label="Bottom",
-            exclude_indices=top_net_dex,
-        )
-        _set_ranked_highlights(
-            "Call_TEX",
-            "Call_TEX_Highlight",
-            top_n=5,
-            use_nsmallest=True,
-        )
-        _set_ranked_highlights(
-            "Put_TEX",
-            "Put_TEX_Highlight",
-            top_n=5,
-            use_nsmallest=True,
-        )
-        _set_ranked_highlights(
-            "Net_TEX",
-            "TEX_highlight",
-            top_n=5,
-            use_nsmallest=True,
-        )
-        _set_ranked_highlights("Call_IVxOI", "Call_IVxOI_Highlight", top_n=4)
-        _set_ranked_highlights("Put_IVxOI", "Put_IVxOI_Highlight", top_n=4)
+        apply_highlight_annotations(metrics)
 
         activity_metric = pd.Series([0.0] * len(metrics), index=metrics.index, dtype="Float64")
         if "call_volume" in unified_df.columns or "puts_volume" in unified_df.columns:
@@ -413,4 +453,4 @@ def compute_derived_metrics(
     return result
 
 
-__all__ = ["DERIVED_CSV_HEADER", "compute_derived_metrics"]
+__all__ = ["DERIVED_CSV_HEADER", "apply_highlight_annotations", "compute_derived_metrics"]
