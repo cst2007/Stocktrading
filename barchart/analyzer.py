@@ -8,7 +8,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Set
 
 import pandas as pd
 
@@ -899,20 +899,60 @@ class BarchartOptionsAnalyzer:
             logger.debug("No strike data available for highlight logging")
             return
 
+
         highlight_columns = [column for column in HIGHLIGHT_METRIC_MAP.values() if column in summary.columns]
         if not highlight_columns:
             logger.debug("No highlight columns present in strike summary; skipping highlight log")
             return
 
+        safe_ticker = re.sub(r"[^A-Za-z0-9_.-]", "_", result.ticker)
+        highlight_log_dir = result.output_directory / "highlight_logs"
+        highlight_log_path = highlight_log_dir / f"{safe_ticker}_highlight_log.csv"
+
+        existing_df: pd.DataFrame | None = None
+        tracked_strikes: Set[float] = set()
+        if highlight_log_path.exists():
+            existing_df = pd.read_csv(highlight_log_path)
+            strike_series = pd.to_numeric(existing_df.get("Strike"), errors="coerce")
+            tracked_strikes = {
+                float(strike)
+                for strike in strike_series.dropna().tolist()
+            }
+
         highlight_mask = summary[highlight_columns].fillna("").ne("").any(axis=1)
-        if not highlight_mask.any():
-            logger.debug("No highlights detected for %s %s; skipping highlight log", result.ticker, result.expiry)
+        if not highlight_mask.any() and not tracked_strikes:
+            logger.debug(
+                "No highlights detected for %s %s; skipping highlight log",
+                result.ticker,
+                result.expiry,
+            )
             return
 
-        highlighted_rows = summary.loc[highlight_mask].copy()
-        strike_series = pd.to_numeric(pd.Series(highlighted_rows.index, index=highlighted_rows.index), errors="coerce")
-        highlighted_rows["_strike"] = strike_series
-        highlighted_rows = highlighted_rows.loc[highlighted_rows["_strike"].notna()]
+        summary_with_strike = summary.copy()
+        strike_series = pd.to_numeric(pd.Series(summary_with_strike.index, index=summary_with_strike.index), errors="coerce")
+        summary_with_strike["_strike"] = strike_series
+        summary_with_strike = summary_with_strike.loc[summary_with_strike["_strike"].notna()]
+        if summary_with_strike.empty:
+            logger.debug("Highlight rows contained no numeric strikes; skipping highlight log")
+            return
+
+        summary_with_strike["_strike_rounded"] = summary_with_strike["_strike"].round(2)
+
+        highlighted_indices = highlight_mask[highlight_mask].index
+        current_highlighted_strikes = set(
+            summary_with_strike.loc[
+                summary_with_strike.index.intersection(highlighted_indices),
+                "_strike_rounded",
+            ].astype(float).tolist()
+        )
+        strikes_to_log = set(tracked_strikes) | current_highlighted_strikes
+        if not strikes_to_log:
+            logger.debug("No highlight rows contained numeric strikes; skipping highlight log")
+            return
+
+        highlighted_rows = summary_with_strike.loc[
+            summary_with_strike["_strike_rounded"].isin(strikes_to_log)
+        ].copy()
         if highlighted_rows.empty:
             logger.debug("Highlight rows contained no numeric strikes; skipping highlight log")
             return
@@ -929,7 +969,7 @@ class BarchartOptionsAnalyzer:
             "Ticker": [result.ticker] * log_length,
             "Expiry": [result.expiry] * log_length,
             "Run_Timestamp": timestamp_series.tolist(),
-            "Strike": highlighted_rows["_strike"].astype(float).tolist(),
+            "Strike": highlighted_rows["_strike_rounded"].astype(float).tolist(),
         }
 
         for metric, highlight_column in HIGHLIGHT_METRIC_MAP.items():
@@ -938,18 +978,18 @@ class BarchartOptionsAnalyzer:
                 continue
             values = pd.to_numeric(highlighted_rows[metric], errors="coerce")
             highlight_flags = highlighted_rows[highlight_column].fillna("")
-            filtered_values = values.where(highlight_flags != "", pd.NA)
+            historical_mask = highlighted_rows["_strike_rounded"].isin(tracked_strikes)
+            filtered_values = values.where(
+                (highlight_flags != "") | historical_mask,
+                pd.NA,
+            )
             log_data[metric] = filtered_values.tolist()
 
         log_df = pd.DataFrame(log_data)
         log_df = log_df.sort_values("Strike", ascending=False).reset_index(drop=True)
 
-        safe_ticker = re.sub(r"[^A-Za-z0-9_.-]", "_", result.ticker)
-        highlight_log_dir = result.output_directory / "highlight_logs"
         highlight_log_dir.mkdir(parents=True, exist_ok=True)
-        highlight_log_path = highlight_log_dir / f"{safe_ticker}_highlight_log.csv"
-        if highlight_log_path.exists():
-            existing_df = pd.read_csv(highlight_log_path)
+        if existing_df is not None:
             combined_df = pd.concat([existing_df, log_df], ignore_index=True, sort=False)
             combined_df = combined_df.reindex(columns=log_df.columns)
         else:
