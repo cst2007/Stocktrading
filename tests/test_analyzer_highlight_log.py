@@ -228,10 +228,16 @@ def test_highlight_log_appends_full_rows_for_successive_runs(tmp_path):
     assert latest_first_strike["Call_IVxOI"] == pytest.approx(13.67)
     assert latest_first_strike["Put_IVxOI"] == pytest.approx(19.21)
 
-    second_first_strike = first_strike_rows.iloc[1]
-    assert second_first_strike["Net_DEX"] == pytest.approx(950.12, rel=1e-3)
-    assert second_first_strike["Call_Vanna"] == pytest.approx(40.79, rel=1e-3)
-    assert second_first_strike["Put_Vanna"] == pytest.approx(-90.99, rel=1e-3)
+    previous_first_strike = first_strike_rows.iloc[1]
+    assert previous_first_strike["Net_DEX"] == pytest.approx(950.12, rel=1e-3)
+    assert previous_first_strike["Call_Vanna"] == pytest.approx(40.79, rel=1e-3)
+    assert previous_first_strike["Put_Vanna"] == pytest.approx(-90.99, rel=1e-3)
+    assert previous_first_strike["Net_GEX"] == pytest.approx(-200.43, rel=1e-3)
+    assert previous_first_strike["Call_TEX"] == pytest.approx(-80.99, rel=1e-3)
+    assert previous_first_strike["Put_TEX"] == pytest.approx(-180.65, rel=1e-3)
+    assert previous_first_strike["Net_TEX"] == pytest.approx(-260.35, rel=1e-3)
+    assert previous_first_strike["Call_IVxOI"] == pytest.approx(12.35, rel=1e-3)
+    assert previous_first_strike["Put_IVxOI"] == pytest.approx(18.99, rel=1e-3)
 
     second_strike_rows = log_df.loc[np.isclose(log_df["Strike"], 100.12, rtol=1e-3)].reset_index(drop=True)
     assert list(second_strike_rows["Run_Timestamp"]) == [
@@ -249,8 +255,14 @@ def test_highlight_log_appends_full_rows_for_successive_runs(tmp_path):
     assert latest_second_strike["Call_IVxOI"] == pytest.approx(16.23)
     assert latest_second_strike["Put_IVxOI"] == pytest.approx(11.45)
 
-    second_second_strike = second_strike_rows.iloc[1]
-    assert second_second_strike["Net_DEX"] == pytest.approx(1000.57, rel=1e-3)
-    assert second_second_strike["Call_Vanna"] == pytest.approx(80.35, rel=1e-3)
-    assert second_second_strike["Put_Vanna"] == pytest.approx(-30.43, rel=1e-3)
+    previous_second_strike = second_strike_rows.iloc[1]
+    assert previous_second_strike["Net_DEX"] == pytest.approx(1000.57, rel=1e-3)
+    assert previous_second_strike["Call_Vanna"] == pytest.approx(80.35, rel=1e-3)
+    assert previous_second_strike["Put_Vanna"] == pytest.approx(-30.43, rel=1e-3)
+    assert previous_second_strike["Net_GEX"] == pytest.approx(150.68, rel=1e-3)
+    assert previous_second_strike["Call_TEX"] == pytest.approx(-120.68, rel=1e-3)
+    assert previous_second_strike["Put_TEX"] == pytest.approx(-60.54, rel=1e-3)
+    assert previous_second_strike["Net_TEX"] == pytest.approx(-180.99, rel=1e-3)
+    assert previous_second_strike["Call_IVxOI"] == pytest.approx(15.79, rel=1e-3)
+    assert previous_second_strike["Put_IVxOI"] == pytest.approx(10.65, rel=1e-3)
 
