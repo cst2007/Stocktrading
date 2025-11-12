@@ -189,7 +189,7 @@ def test_put_vanna_highlight_marks_top_strikes():
     )
 
     highlighted = metrics.loc[metrics["Put_Vanna_Highlight"] != ""]
-    top_put_indices = metrics["Put_Vanna"].nlargest(4).index
+    top_put_indices = metrics["Put_Vanna"].nsmallest(4).index
 
     assert set(highlighted.index) == set(top_put_indices)
 
