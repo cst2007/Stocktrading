@@ -188,9 +188,10 @@ def test_put_vanna_highlight_marks_top_strikes():
         iv_direction="up",
     )
 
-    highlighted = metrics.loc[metrics["Put_Vanna_Highlight"] == "highlight"]
+    highlighted = metrics.loc[metrics["Put_Vanna_Highlight"] != ""]
     top_put_values = metrics["Put_Vanna"].nlargest(3)
-    assert set(highlighted["Strike"]) == set(metrics.loc[top_put_values.index, "Strike"])
+    expected_strikes = metrics.loc[top_put_values.index, "Strike"].astype(str)
+    assert set(highlighted["Put_Vanna_Highlight"]) == set(expected_strikes)
 
 
 def test_dex_highlight_marks_top_strikes():
@@ -202,9 +203,10 @@ def test_dex_highlight_marks_top_strikes():
         iv_direction="up",
     )
 
-    highlighted = metrics.loc[metrics["DEX_highlight"] == "highlight"]
+    highlighted = metrics.loc[metrics["DEX_highlight"] != ""]
     top_dex_values = metrics["Net_DEX"].nlargest(5)
-    assert set(highlighted["Strike"]) == set(metrics.loc[top_dex_values.index, "Strike"])
+    expected_strikes = metrics.loc[top_dex_values.index, "Strike"].astype(str)
+    assert set(highlighted["DEX_highlight"]) == set(expected_strikes)
 
 
 def test_invalid_direction_raises_error():
