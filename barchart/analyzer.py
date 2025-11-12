@@ -197,7 +197,12 @@ class BarchartOptionsAnalyzer:
             raise FileNotFoundError(f"Input path {path} does not exist")
 
         results: List[ProcessingResult] = []
-        for csv_path in sorted(path.glob("**/*.csv")):
+        csv_paths = sorted(
+            candidate
+            for candidate in path.rglob("*")
+            if candidate.is_file() and candidate.name.lower().endswith(".csv")
+        )
+        for csv_path in csv_paths:
             try:
                 results.append(self._process_file(csv_path, output_directory))
             except (MissingOpenInterestError, MissingGreeksError) as exc:
