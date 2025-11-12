@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Sequence
+from typing import Collection, Sequence
 
 import pandas as pd
 
@@ -33,6 +33,8 @@ DERIVED_CSV_HEADER = [
     "Put_IV",
     "Call_IVxOI",
     "Put_IVxOI",
+    "Call_IVxOI_Highlight",
+    "Put_IVxOI_Highlight",
     "IVxOI",
     "Median_IVxOI",
     "Call_Vanna_Ratio",
@@ -269,6 +271,8 @@ def compute_derived_metrics(
     metrics["Call_TEX_Highlight"] = ""
     metrics["Put_TEX_Highlight"] = ""
     metrics["TEX_highlight"] = ""
+    metrics["Call_IVxOI_Highlight"] = ""
+    metrics["Put_IVxOI_Highlight"] = ""
 
     metrics["Top5_Regime_Energy_Bias"] = ""
 
@@ -279,10 +283,12 @@ def compute_derived_metrics(
             top_n: int,
             *,
             use_nsmallest: bool = False,
-        ) -> None:
+            label: str = "Top",
+            exclude_indices: Collection | None = None,
+        ) -> list:
             count = int(metrics[value_column].count())
             if not count:
-                return
+                return []
 
             series = metrics[value_column]
             limit = min(top_n, count)
@@ -290,9 +296,14 @@ def compute_derived_metrics(
                 ranked_indices = series.nsmallest(limit).index
             else:
                 ranked_indices = series.nlargest(limit).index
-            for rank, idx in enumerate(ranked_indices, start=1):
+            excluded = set(exclude_indices or [])
+            used_indices: list = []
+            filtered_indices = [idx for idx in ranked_indices if idx not in excluded]
+            for rank, idx in enumerate(filtered_indices, start=1):
                 strike_value = _format_strike(metrics.at[idx, "Strike"])
-                metrics.at[idx, highlight_column] = f"Top {rank} : {strike_value}"
+                metrics.at[idx, highlight_column] = f"{label} {rank} : {strike_value}"
+                used_indices.append(idx)
+            return used_indices
 
         _set_ranked_highlights("Call_Vanna", "Call_Vanna_Highlight", top_n=4)
         _set_ranked_highlights(
@@ -301,8 +312,24 @@ def compute_derived_metrics(
             top_n=4,
             use_nsmallest=True,
         )
-        _set_ranked_highlights("Net_GEX", "Net_GEX_Highlight", top_n=4)
-        _set_ranked_highlights("Net_DEX", "DEX_highlight", top_n=5)
+        top_net_gex = _set_ranked_highlights("Net_GEX", "Net_GEX_Highlight", top_n=4)
+        _set_ranked_highlights(
+            "Net_GEX",
+            "Net_GEX_Highlight",
+            top_n=4,
+            use_nsmallest=True,
+            label="Bottom",
+            exclude_indices=top_net_gex,
+        )
+        top_net_dex = _set_ranked_highlights("Net_DEX", "DEX_highlight", top_n=4)
+        _set_ranked_highlights(
+            "Net_DEX",
+            "DEX_highlight",
+            top_n=4,
+            use_nsmallest=True,
+            label="Bottom",
+            exclude_indices=top_net_dex,
+        )
         _set_ranked_highlights(
             "Call_TEX",
             "Call_TEX_Highlight",
@@ -321,6 +348,8 @@ def compute_derived_metrics(
             top_n=5,
             use_nsmallest=True,
         )
+        _set_ranked_highlights("Call_IVxOI", "Call_IVxOI_Highlight", top_n=4)
+        _set_ranked_highlights("Put_IVxOI", "Put_IVxOI_Highlight", top_n=4)
 
         activity_metric = pd.Series([0.0] * len(metrics), index=metrics.index, dtype="Float64")
         if "call_volume" in unified_df.columns or "puts_volume" in unified_df.columns:
