@@ -972,7 +972,12 @@ class BarchartOptionsAnalyzer:
                 combined_df[column], errors="coerce"
             ).round(2)
 
-        combined_df.to_csv(highlight_log_path, index=False)
+        combined_df.to_csv(
+            highlight_log_path,
+            index=False,
+            float_format="%.2f",
+            na_rep="",
+        )
         logger.info("Updated highlight log CSV at %s", highlight_log_path)
 
     def _persist_to_database(self, result: ProcessingResult) -> None:
