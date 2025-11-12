@@ -13,50 +13,54 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from barchart.analyzer import BarchartOptionsAnalyzer, ProcessingResult
 
 
-def _build_processing_result(tmp_path: Path) -> ProcessingResult:
-    index = pd.Index([100.1234, 90.9876])
-    summary_df = pd.DataFrame(
-        {
-            "Net_GEX": [150.6789, -200.4321],
-            "Net_Vanna": [50.0, -60.0],
-            "Call_Vanna": [80.3456, 40.7891],
-            "Put_Vanna": [-30.4321, -90.9876],
-            "Call_GEX": [90.0, 60.0],
-            "Put_GEX": [60.0, -260.0],
-            "Call_DEX": [600.0, 500.0],
-            "Put_DEX": [400.0, 450.0],
-            "Net_DEX": [1000.5678, 950.1234],
-            "Call_TEX": [-120.6789, -80.9876],
-            "Put_TEX": [-60.5432, -180.6543],
-            "Net_TEX": [-180.9876, -260.3456],
-            "Call_IVxOI": [15.789, 12.345],
-            "Put_IVxOI": [10.654, 18.987],
-            "Call_Vanna_Ratio": [1.2, 0.8],
-            "Put_Vanna_Ratio": [0.5, 1.1],
-            "Vanna_GEX_Total": [0.4, -0.3],
-            "IVxOI": [25.0, 30.0],
-            "Median_IVxOI": [27.5, 27.5],
-            "Energy_Score": ["High", "Moderate"],
-            "Regime": ["Gamma Pin", "Vol Drift Up"],
-            "Dealer_Bias": [
-                "Neutral / Mean Reversion",
-                "Dealer Selling → Bearish Fade",
-            ],
-            "Rel_Dist": [0.02, 0.05],
-            "Top5_Regime_Energy_Bias": ["", ""],
-            "DateTime": ["2024-05-01T12:00:00Z", "2024-05-01T12:00:00Z"],
-            "Call_Vanna_Highlight": ["Top 1 : 100.12", ""],
-            "Put_Vanna_Highlight": ["", "Bottom 1 : 90.99"],
-            "Net_GEX_Highlight": ["Top 1 : 100.12", ""],
-            "DEX_highlight": ["Top 1 : 100.12", ""],
-            "Call_TEX_Highlight": ["Top 1 : 100.12", ""],
-            "Put_TEX_Highlight": ["", "Top 1 : 90.99"],
-            "TEX_highlight": ["", "Top 1 : 90.99"],
-            "Call_IVxOI_Highlight": ["Top 1 : 100.12", ""],
-            "Put_IVxOI_Highlight": ["", "Top 1 : 90.99"],
-        },
-        index=index,
-    )
+def _build_processing_result(tmp_path: Path, summary_df: pd.DataFrame | None = None) -> ProcessingResult:
+    if summary_df is None:
+        index = pd.Index([100.1234, 90.9876])
+        summary_df = pd.DataFrame(
+            {
+                "Net_GEX": [150.6789, -200.4321],
+                "Net_Vanna": [50.0, -60.0],
+                "Call_Vanna": [80.3456, 40.7891],
+                "Put_Vanna": [-30.4321, -90.9876],
+                "Call_GEX": [90.0, 60.0],
+                "Put_GEX": [60.0, -260.0],
+                "Call_DEX": [600.0, 500.0],
+                "Put_DEX": [400.0, 450.0],
+                "Net_DEX": [1000.5678, 950.1234],
+                "Call_TEX": [-120.6789, -80.9876],
+                "Put_TEX": [-60.5432, -180.6543],
+                "Net_TEX": [-180.9876, -260.3456],
+                "Call_IVxOI": [15.789, 12.345],
+                "Put_IVxOI": [10.654, 18.987],
+                "Call_Vanna_Ratio": [1.2, 0.8],
+                "Put_Vanna_Ratio": [0.5, 1.1],
+                "Vanna_GEX_Total": [0.4, -0.3],
+                "IVxOI": [25.0, 30.0],
+                "Median_IVxOI": [27.5, 27.5],
+                "Energy_Score": ["High", "Moderate"],
+                "Regime": ["Gamma Pin", "Vol Drift Up"],
+                "Dealer_Bias": [
+                    "Neutral / Mean Reversion",
+                    "Dealer Selling → Bearish Fade",
+                ],
+                "Rel_Dist": [0.02, 0.05],
+                "Top5_Regime_Energy_Bias": ["", ""],
+                "DateTime": ["2024-05-01T12:00:00Z", "2024-05-01T12:00:00Z"],
+                "Call_Vanna_Highlight": ["Top 1 : 100.12", ""],
+                "Put_Vanna_Highlight": ["", "Bottom 1 : 90.99"],
+                "Net_GEX_Highlight": ["Top 1 : 100.12", ""],
+                "DEX_highlight": ["Top 1 : 100.12", ""],
+                "Call_TEX_Highlight": ["Top 1 : 100.12", ""],
+                "Put_TEX_Highlight": ["", "Top 1 : 90.99"],
+                "TEX_highlight": ["", "Top 1 : 90.99"],
+                "Call_IVxOI_Highlight": ["Top 1 : 100.12", ""],
+                "Put_IVxOI_Highlight": ["", "Top 1 : 90.99"],
+            },
+            index=index,
+        )
+    else:
+        summary_df = summary_df.copy()
+        index = summary_df.index
 
     return ProcessingResult(
         ticker="TEST",
@@ -140,4 +144,86 @@ def test_highlight_log_records_highlighted_values(tmp_path):
     # Confirm numbers are written with thousands separators in the CSV output
     csv_contents = highlight_path.read_text(encoding="utf-8")
     assert '"1,000.57"' in csv_contents
+
+
+def test_highlight_log_preserves_tracked_strikes_without_new_highlights(tmp_path):
+    analyzer = BarchartOptionsAnalyzer(create_charts=False)
+    initial_result = _build_processing_result(tmp_path)
+    analyzer._write_outputs(initial_result)
+
+    summary_df = initial_result.strike_summary_df.copy()
+    highlight_columns = [
+        "Call_Vanna_Highlight",
+        "Put_Vanna_Highlight",
+        "Net_GEX_Highlight",
+        "DEX_highlight",
+        "Call_TEX_Highlight",
+        "Put_TEX_Highlight",
+        "TEX_highlight",
+        "Call_IVxOI_Highlight",
+        "Put_IVxOI_Highlight",
+    ]
+    for column in highlight_columns:
+        summary_df[column] = ""
+
+    summary_df.loc[:, "DateTime"] = [
+        "2024-05-02T12:00:00Z",
+        "2024-05-02T12:00:00Z",
+    ]
+
+    summary_df.loc[100.1234, "Net_DEX"] = 1200.12
+    summary_df.loc[90.9876, "Net_DEX"] = 940.45
+    summary_df.loc[100.1234, "Call_Vanna"] = 75.55
+    summary_df.loc[90.9876, "Call_Vanna"] = 52.66
+    summary_df.loc[100.1234, "Put_Vanna"] = -28.44
+    summary_df.loc[90.9876, "Put_Vanna"] = -85.77
+    summary_df.loc[100.1234, "Net_GEX"] = 165.43
+    summary_df.loc[90.9876, "Net_GEX"] = -215.88
+    summary_df.loc[100.1234, "Call_TEX"] = -130.22
+    summary_df.loc[90.9876, "Call_TEX"] = -95.11
+    summary_df.loc[100.1234, "Put_TEX"] = -70.33
+    summary_df.loc[90.9876, "Put_TEX"] = -165.22
+    summary_df.loc[100.1234, "Net_TEX"] = -200.55
+    summary_df.loc[90.9876, "Net_TEX"] = -260.33
+    summary_df.loc[100.1234, "Call_IVxOI"] = 16.23
+    summary_df.loc[90.9876, "Call_IVxOI"] = 13.67
+    summary_df.loc[100.1234, "Put_IVxOI"] = 11.45
+    summary_df.loc[90.9876, "Put_IVxOI"] = 19.21
+
+    follow_up_result = _build_processing_result(tmp_path, summary_df=summary_df)
+    analyzer._write_outputs(follow_up_result)
+
+    highlight_path = tmp_path / "highlight_logs" / "TEST_highlight_log.csv"
+    log_df = pd.read_csv(highlight_path, thousands=",", na_values=[""], keep_default_na=True)
+
+    assert log_df.shape[0] == 4
+
+    second_run_mask = log_df["Run_Timestamp"] == "2024-05-02T12:00:00Z"
+    assert second_run_mask.sum() == 2
+
+    second_run_rows = log_df.loc[second_run_mask].sort_values("Strike").reset_index(drop=True)
+
+    first_second_row = second_run_rows.iloc[0]
+    assert first_second_row["Strike"] == pytest.approx(90.99, rel=1e-3)
+    assert first_second_row["Net_DEX"] == pytest.approx(940.45)
+    assert first_second_row["Call_Vanna"] == pytest.approx(52.66)
+    assert first_second_row["Put_Vanna"] == pytest.approx(-85.77)
+    assert first_second_row["Net_GEX"] == pytest.approx(-215.88)
+    assert first_second_row["Call_TEX"] == pytest.approx(-95.11)
+    assert first_second_row["Put_TEX"] == pytest.approx(-165.22)
+    assert first_second_row["Net_TEX"] == pytest.approx(-260.33)
+    assert first_second_row["Call_IVxOI"] == pytest.approx(13.67)
+    assert first_second_row["Put_IVxOI"] == pytest.approx(19.21)
+
+    second_second_row = second_run_rows.iloc[1]
+    assert second_second_row["Strike"] == pytest.approx(100.12, rel=1e-3)
+    assert second_second_row["Net_DEX"] == pytest.approx(1200.12)
+    assert second_second_row["Call_Vanna"] == pytest.approx(75.55)
+    assert second_second_row["Put_Vanna"] == pytest.approx(-28.44)
+    assert second_second_row["Net_GEX"] == pytest.approx(165.43)
+    assert second_second_row["Call_TEX"] == pytest.approx(-130.22)
+    assert second_second_row["Put_TEX"] == pytest.approx(-70.33)
+    assert second_second_row["Net_TEX"] == pytest.approx(-200.55)
+    assert second_second_row["Call_IVxOI"] == pytest.approx(16.23)
+    assert second_second_row["Put_IVxOI"] == pytest.approx(11.45)
 
