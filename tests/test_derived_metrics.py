@@ -240,13 +240,37 @@ def test_tex_highlight_marks_top_strikes():
     )
 
     highlighted = metrics.loc[metrics["TEX_highlight"] != ""]
-    top_tex_indices = metrics["Net_TEX"].nlargest(4).index
+    top_tex_indices = metrics["Net_TEX"].nsmallest(5).index
 
     assert set(highlighted.index) == set(top_tex_indices)
 
     for rank, idx in enumerate(top_tex_indices, start=1):
         strike_value = _format_strike(metrics.at[idx, "Strike"])
         assert metrics.at[idx, "TEX_highlight"] == f"Top {rank} : {strike_value}"
+
+
+def test_call_and_put_tex_highlights_mark_most_negative():
+    df = _build_sample_frame()
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+        iv_direction="up",
+    )
+
+    call_highlighted = metrics.loc[metrics["Call_TEX_Highlight"] != ""]
+    top_call_indices = metrics["Call_TEX"].nsmallest(5).index
+    assert set(call_highlighted.index) == set(top_call_indices)
+    for rank, idx in enumerate(top_call_indices, start=1):
+        strike_value = _format_strike(metrics.at[idx, "Strike"])
+        assert metrics.at[idx, "Call_TEX_Highlight"] == f"Top {rank} : {strike_value}"
+
+    put_highlighted = metrics.loc[metrics["Put_TEX_Highlight"] != ""]
+    top_put_indices = metrics["Put_TEX"].nsmallest(5).index
+    assert set(put_highlighted.index) == set(top_put_indices)
+    for rank, idx in enumerate(top_put_indices, start=1):
+        strike_value = _format_strike(metrics.at[idx, "Strike"])
+        assert metrics.at[idx, "Put_TEX_Highlight"] == f"Top {rank} : {strike_value}"
 
 
 def test_invalid_direction_raises_error():

@@ -24,7 +24,9 @@ DERIVED_CSV_HEADER = [
     "Net_DEX",
     "DEX_highlight",
     "Call_TEX",
+    "Call_TEX_Highlight",
     "Put_TEX",
+    "Put_TEX_Highlight",
     "Net_TEX",
     "TEX_highlight",
     "Call_IV",
@@ -264,6 +266,8 @@ def compute_derived_metrics(
     metrics["Put_Vanna_Highlight"] = ""
     metrics["Net_GEX_Highlight"] = ""
     metrics["DEX_highlight"] = ""
+    metrics["Call_TEX_Highlight"] = ""
+    metrics["Put_TEX_Highlight"] = ""
     metrics["TEX_highlight"] = ""
 
     metrics["Top5_Regime_Energy_Bias"] = ""
@@ -299,7 +303,24 @@ def compute_derived_metrics(
         )
         _set_ranked_highlights("Net_GEX", "Net_GEX_Highlight", top_n=4)
         _set_ranked_highlights("Net_DEX", "DEX_highlight", top_n=5)
-        _set_ranked_highlights("Net_TEX", "TEX_highlight", top_n=4)
+        _set_ranked_highlights(
+            "Call_TEX",
+            "Call_TEX_Highlight",
+            top_n=5,
+            use_nsmallest=True,
+        )
+        _set_ranked_highlights(
+            "Put_TEX",
+            "Put_TEX_Highlight",
+            top_n=5,
+            use_nsmallest=True,
+        )
+        _set_ranked_highlights(
+            "Net_TEX",
+            "TEX_highlight",
+            top_n=5,
+            use_nsmallest=True,
+        )
 
         activity_metric = pd.Series([0.0] * len(metrics), index=metrics.index, dtype="Float64")
         if "call_volume" in unified_df.columns or "puts_volume" in unified_df.columns:
