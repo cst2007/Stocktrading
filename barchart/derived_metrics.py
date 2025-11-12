@@ -23,6 +23,10 @@ DERIVED_CSV_HEADER = [
     "Put_DEX",
     "Net_DEX",
     "DEX_highlight",
+    "Call_TEX",
+    "Put_TEX",
+    "Net_TEX",
+    "TEX_highlight",
     "Call_IV",
     "Put_IV",
     "Call_IVxOI",
@@ -50,6 +54,9 @@ TOTAL_SUM_COLUMNS = {
     "Call_DEX",
     "Put_DEX",
     "Net_DEX",
+    "Call_TEX",
+    "Put_TEX",
+    "Net_TEX",
     "Call_IVxOI",
     "Put_IVxOI",
     "IVxOI",
@@ -152,6 +159,8 @@ def compute_derived_metrics(
         "puts_open_interest",
         "call_delta",
         "puts_delta",
+        "call_theta",
+        "puts_theta",
         "call_iv",
         "puts_iv",
         "call_oi_iv",
@@ -186,6 +195,16 @@ def compute_derived_metrics(
                 * unified_df["puts_open_interest"].astype(float)
                 * 100
             ),
+            "Call_TEX": (
+                unified_df["call_theta"].astype(float)
+                * unified_df["call_open_interest"].astype(float)
+                * 100
+            ),
+            "Put_TEX": (
+                unified_df["puts_theta"].astype(float)
+                * unified_df["puts_open_interest"].astype(float)
+                * 100
+            ),
             "Call_IV": unified_df["call_iv"].astype(float).round(1),
             "Put_IV": unified_df["puts_iv"].astype(float).round(1),
             "Call_IVxOI": unified_df["call_oi_iv"].astype(float).round(1),
@@ -194,8 +213,12 @@ def compute_derived_metrics(
     )
 
     metrics["Net_DEX"] = metrics["Call_DEX"] + metrics["Put_DEX"]
+    metrics["Net_TEX"] = metrics["Call_TEX"] + metrics["Put_TEX"]
 
     for column in ("Call_DEX", "Put_DEX", "Net_DEX"):
+        metrics[column] = metrics[column].round(1)
+
+    for column in ("Call_TEX", "Put_TEX", "Net_TEX"):
         metrics[column] = metrics[column].round(1)
 
     metrics["IVxOI"] = (
@@ -241,6 +264,7 @@ def compute_derived_metrics(
     metrics["Put_Vanna_Highlight"] = ""
     metrics["Net_GEX_Highlight"] = ""
     metrics["DEX_highlight"] = ""
+    metrics["TEX_highlight"] = ""
 
     metrics["Top5_Regime_Energy_Bias"] = ""
 
@@ -275,6 +299,7 @@ def compute_derived_metrics(
         )
         _set_ranked_highlights("Net_GEX", "Net_GEX_Highlight", top_n=4)
         _set_ranked_highlights("Net_DEX", "DEX_highlight", top_n=5)
+        _set_ranked_highlights("Net_TEX", "TEX_highlight", top_n=4)
 
         activity_metric = pd.Series([0.0] * len(metrics), index=metrics.index, dtype="Float64")
         if "call_volume" in unified_df.columns or "puts_volume" in unified_df.columns:

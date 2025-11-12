@@ -23,6 +23,9 @@ def _build_sample_frame() -> pd.DataFrame:
     call_iv = [0.10, 0.50, 0.20, 0.10, 0.10, 0.20]
     put_iv = [0.10, 0.20, 0.80, 0.10, 0.10, 0.15]
 
+    call_theta = [-0.05, -0.08, -0.03, -0.04, -0.02, -0.01]
+    put_theta = [-0.02, -0.03, -0.06, -0.01, -0.04, -0.05]
+
     call_volume = [600, 500, 400, 300, 200, 100]
     put_volume = [580, 450, 380, 260, 180, 90]
 
@@ -37,6 +40,8 @@ def _build_sample_frame() -> pd.DataFrame:
             "net_gex": [c + p for c, p in zip(call_gex, put_gex)],
             "call_delta": [0.45, 0.55, 0.40, 0.50, 0.35, 0.60],
             "puts_delta": [0.55, 0.45, 0.60, 0.40, 0.65, 0.35],
+            "call_theta": call_theta,
+            "puts_theta": put_theta,
             "call_open_interest": call_open_interest,
             "puts_open_interest": put_open_interest,
             "call_iv": call_iv,
@@ -64,6 +69,8 @@ def test_ratios_and_regime_classification():
     gamma_pin = metrics.loc[metrics["Strike"] == 100].iloc[0]
     assert pytest.approx(gamma_pin["Call_Vanna_Ratio"], rel=1e-6) == 0.5
     assert gamma_pin["Regime"] == "Gamma Pin"
+    expected_call_tex = -0.05 * 100 * 100
+    assert gamma_pin["Call_TEX"] == pytest.approx(round(expected_call_tex, 1))
 
     zero_call = metrics.loc[metrics["Strike"] == 104].iloc[0]
     assert pd.isna(zero_call["Call_Vanna_Ratio"])
@@ -146,10 +153,13 @@ def test_totals_row_is_appended_when_requested():
     assert totals_row["Put_Vanna_Highlight"] == ""
     assert totals_row["Net_GEX_Highlight"] == ""
     assert totals_row["DEX_highlight"] == ""
+    assert totals_row["TEX_highlight"] == ""
 
     data_only = metrics.iloc[:-1]
     expected_net_gex_total = pd.to_numeric(data_only["Net_GEX"], errors="coerce").sum()
     assert totals_row["Net_GEX"] == pytest.approx(round(expected_net_gex_total, 2))
+    expected_net_tex_total = pd.to_numeric(data_only["Net_TEX"], errors="coerce").sum()
+    assert totals_row["Net_TEX"] == pytest.approx(round(expected_net_tex_total, 2))
 
 
 def test_columns_can_be_dropped_from_output():
@@ -218,6 +228,25 @@ def test_dex_highlight_marks_top_strikes():
     for rank, idx in enumerate(top_dex_indices, start=1):
         strike_value = _format_strike(metrics.at[idx, "Strike"])
         assert metrics.at[idx, "DEX_highlight"] == f"Top {rank} : {strike_value}"
+
+
+def test_tex_highlight_marks_top_strikes():
+    df = _build_sample_frame()
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+        iv_direction="up",
+    )
+
+    highlighted = metrics.loc[metrics["TEX_highlight"] != ""]
+    top_tex_indices = metrics["Net_TEX"].nlargest(4).index
+
+    assert set(highlighted.index) == set(top_tex_indices)
+
+    for rank, idx in enumerate(top_tex_indices, start=1):
+        strike_value = _format_strike(metrics.at[idx, "Strike"])
+        assert metrics.at[idx, "TEX_highlight"] == f"Top {rank} : {strike_value}"
 
 
 def test_invalid_direction_raises_error():

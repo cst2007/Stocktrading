@@ -21,6 +21,7 @@ COMBINED_CSV_HEADER = [
     "call_delta",
     "call_gamma",
     "call_vega",
+    "call_theta",
     "call_gex",
     "call_vanna",
     "puts_volume",
@@ -31,6 +32,7 @@ COMBINED_CSV_HEADER = [
     "puts_delta",
     "puts_gamma",
     "puts_vega",
+    "puts_theta",
     "puts_gex",
     "puts_vanna",
     "net_gex",
@@ -108,9 +110,11 @@ def _load_greeks(path: Path) -> pd.DataFrame:
         "Delta",
         "Gamma",
         "Vega",
+        "Theta",
         "Delta.1",
         "Gamma.1",
         "Vega.1",
+        "Theta.1",
     }
     missing = required_columns.difference(df.columns)
     if missing:
@@ -124,9 +128,11 @@ def _load_greeks(path: Path) -> pd.DataFrame:
             "call_delta": pd.to_numeric(df["Delta"], errors="coerce"),
             "call_gamma": pd.to_numeric(df["Gamma"], errors="coerce"),
             "call_vega": pd.to_numeric(df["Vega"], errors="coerce"),
+            "call_theta": pd.to_numeric(df["Theta"], errors="coerce"),
             "puts_delta": pd.to_numeric(df["Delta.1"], errors="coerce"),
             "puts_gamma": pd.to_numeric(df["Gamma.1"], errors="coerce"),
             "puts_vega": pd.to_numeric(df["Vega.1"], errors="coerce"),
+            "puts_theta": pd.to_numeric(df["Theta.1"], errors="coerce"),
         }
     )
 
@@ -180,6 +186,7 @@ def combine_option_files(
         "call_delta": 1,
         "call_gamma": 1,
         "call_vega": 1,
+        "call_theta": 4,
         "call_gex": 1,
         "call_vanna": 1,
         "IVxOI": 1,
@@ -190,6 +197,7 @@ def combine_option_files(
         "puts_delta": 1,
         "puts_gamma": 1,
         "puts_vega": 1,
+        "puts_theta": 4,
         "net_gex": 1,
         "net_vanna": 1,
         "Spot": 2,
@@ -206,6 +214,7 @@ def combine_option_files(
         "call_delta",
         "call_gamma",
         "call_vega",
+        "call_theta",
         "call_gex",
         "call_vanna",
         "puts_volume",
@@ -216,6 +225,7 @@ def combine_option_files(
         "puts_delta",
         "puts_gamma",
         "puts_vega",
+        "puts_theta",
         "puts_gex",
         "puts_vanna",
         "net_gex",
