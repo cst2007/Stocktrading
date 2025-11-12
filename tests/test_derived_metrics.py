@@ -144,6 +144,8 @@ def test_totals_row_is_appended_when_requested():
     assert totals_row["Strike"] == "Total"
     assert totals_row["Call_Vanna_Highlight"] == ""
     assert totals_row["Put_Vanna_Highlight"] == ""
+    assert totals_row["Net_GEX_Highlight"] == ""
+    assert totals_row["DEX_highlight"] == ""
 
     data_only = metrics.iloc[:-1]
     expected_net_gex_total = pd.to_numeric(data_only["Net_GEX"], errors="coerce").sum()
@@ -189,6 +191,20 @@ def test_put_vanna_highlight_marks_top_strikes():
     highlighted = metrics.loc[metrics["Put_Vanna_Highlight"] == "highlight"]
     top_put_values = metrics["Put_Vanna"].nlargest(3)
     assert set(highlighted["Strike"]) == set(metrics.loc[top_put_values.index, "Strike"])
+
+
+def test_dex_highlight_marks_top_strikes():
+    df = _build_sample_frame()
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+        iv_direction="up",
+    )
+
+    highlighted = metrics.loc[metrics["DEX_highlight"] == "highlight"]
+    top_dex_values = metrics["Net_DEX"].nlargest(5)
+    assert set(highlighted["Strike"]) == set(metrics.loc[top_dex_values.index, "Strike"])
 
 
 def test_invalid_direction_raises_error():

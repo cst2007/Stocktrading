@@ -11,14 +11,18 @@ DERIVED_CSV_HEADER = [
     "Strike",
     "DateTime",
     "Call_Vanna",
+    "Call_Vanna_Highlight",
     "Put_Vanna",
+    "Put_Vanna_Highlight",
     "Net_Vanna",
     "Call_GEX",
     "Put_GEX",
     "Net_GEX",
+    "Net_GEX_Highlight",
     "Call_DEX",
     "Put_DEX",
     "Net_DEX",
+    "DEX_highlight",
     "Call_IV",
     "Put_IV",
     "Call_IVxOI",
@@ -34,9 +38,6 @@ DERIVED_CSV_HEADER = [
     "IV_Direction",
     "Rel_Dist",
     "Top5_Regime_Energy_Bias",
-    "Call_Vanna_Highlight",
-    "Put_Vanna_Highlight",
-    "Net_GEX_Highlight",
 ]
 
 TOTAL_SUM_COLUMNS = {
@@ -239,6 +240,7 @@ def compute_derived_metrics(
     metrics["Call_Vanna_Highlight"] = ""
     metrics["Put_Vanna_Highlight"] = ""
     metrics["Net_GEX_Highlight"] = ""
+    metrics["DEX_highlight"] = ""
 
     metrics["Top5_Regime_Energy_Bias"] = ""
 
@@ -257,6 +259,11 @@ def compute_derived_metrics(
         if net_count:
             net_top = metrics["Net_GEX"].nlargest(min(3, net_count)).index
             metrics.loc[net_top, "Net_GEX_Highlight"] = "highlight"
+
+        dex_count = int(metrics["Net_DEX"].count())
+        if dex_count:
+            dex_top = metrics["Net_DEX"].nlargest(min(5, dex_count)).index
+            metrics.loc[dex_top, "DEX_highlight"] = "highlight"
 
         activity_metric = pd.Series([0.0] * len(metrics), index=metrics.index, dtype="Float64")
         if "call_volume" in unified_df.columns or "puts_volume" in unified_df.columns:
