@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from barchart.derived_metrics import compute_derived_metrics
+from barchart.derived_metrics import _format_strike, compute_derived_metrics
 
 
 def _build_sample_frame() -> pd.DataFrame:
@@ -189,9 +189,16 @@ def test_put_vanna_highlight_marks_top_strikes():
     )
 
     highlighted = metrics.loc[metrics["Put_Vanna_Highlight"] != ""]
-    top_put_values = metrics["Put_Vanna"].nlargest(3)
-    expected_strikes = metrics.loc[top_put_values.index, "Strike"].astype(str)
-    assert set(highlighted["Put_Vanna_Highlight"]) == set(expected_strikes)
+    top_put_indices = metrics["Put_Vanna"].nlargest(4).index
+
+    assert set(highlighted.index) == set(top_put_indices)
+
+    for rank, idx in enumerate(top_put_indices, start=1):
+        strike_value = _format_strike(metrics.at[idx, "Strike"])
+        assert (
+            metrics.at[idx, "Put_Vanna_Highlight"]
+            == f"Top {rank} : {strike_value}"
+        )
 
 
 def test_dex_highlight_marks_top_strikes():
@@ -204,9 +211,13 @@ def test_dex_highlight_marks_top_strikes():
     )
 
     highlighted = metrics.loc[metrics["DEX_highlight"] != ""]
-    top_dex_values = metrics["Net_DEX"].nlargest(5)
-    expected_strikes = metrics.loc[top_dex_values.index, "Strike"].astype(str)
-    assert set(highlighted["DEX_highlight"]) == set(expected_strikes)
+    top_dex_indices = metrics["Net_DEX"].nlargest(5).index
+
+    assert set(highlighted.index) == set(top_dex_indices)
+
+    for rank, idx in enumerate(top_dex_indices, start=1):
+        strike_value = _format_strike(metrics.at[idx, "Strike"])
+        assert metrics.at[idx, "DEX_highlight"] == f"Top {rank} : {strike_value}"
 
 
 def test_invalid_direction_raises_error():
