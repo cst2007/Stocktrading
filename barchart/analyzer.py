@@ -911,7 +911,12 @@ class BarchartOptionsAnalyzer:
 
         existing_df: pd.DataFrame | None = None
         if highlight_log_path.exists():
-            existing_df = pd.read_csv(highlight_log_path)
+            existing_df = pd.read_csv(
+                highlight_log_path,
+                thousands=",",
+                na_values=[""],
+                keep_default_na=True,
+            )
 
         highlight_mask = summary[highlight_columns].fillna("").ne("").any(axis=1)
         if not highlight_mask.any():
