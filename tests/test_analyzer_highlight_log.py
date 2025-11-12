@@ -5,31 +5,32 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
+import pytest
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from barchart.analyzer import BarchartOptionsAnalyzer, ProcessingResult
 
 
 def _build_processing_result(tmp_path: Path) -> ProcessingResult:
-    index = pd.Index([100.0, 90.0])
+    index = pd.Index([100.1234, 90.9876])
     summary_df = pd.DataFrame(
         {
-            "Net_GEX": [150.0, -200.0],
+            "Net_GEX": [150.6789, -200.4321],
             "Net_Vanna": [50.0, -60.0],
-            "Call_Vanna": [80.0, 40.0],
-            "Put_Vanna": [-30.0, -90.0],
+            "Call_Vanna": [80.3456, 40.7891],
+            "Put_Vanna": [-30.4321, -90.9876],
             "Call_GEX": [90.0, 60.0],
             "Put_GEX": [60.0, -260.0],
             "Call_DEX": [600.0, 500.0],
             "Put_DEX": [400.0, 450.0],
-            "Net_DEX": [1000.0, 950.0],
-            "Call_TEX": [-120.0, -80.0],
-            "Put_TEX": [-60.0, -180.0],
-            "Net_TEX": [-180.0, -260.0],
-            "Call_IVxOI": [15.0, 12.0],
-            "Put_IVxOI": [10.0, 18.0],
+            "Net_DEX": [1000.5678, 950.1234],
+            "Call_TEX": [-120.6789, -80.9876],
+            "Put_TEX": [-60.5432, -180.6543],
+            "Net_TEX": [-180.9876, -260.3456],
+            "Call_IVxOI": [15.789, 12.345],
+            "Put_IVxOI": [10.654, 18.987],
             "Call_Vanna_Ratio": [1.2, 0.8],
             "Put_Vanna_Ratio": [0.5, 1.1],
             "Vanna_GEX_Total": [0.4, -0.3],
@@ -44,15 +45,15 @@ def _build_processing_result(tmp_path: Path) -> ProcessingResult:
             "Rel_Dist": [0.02, 0.05],
             "Top5_Regime_Energy_Bias": ["", ""],
             "DateTime": ["2024-05-01T12:00:00Z", "2024-05-01T12:00:00Z"],
-            "Call_Vanna_Highlight": ["Top 1 : 100", ""],
-            "Put_Vanna_Highlight": ["", "Bottom 1 : 90"],
-            "Net_GEX_Highlight": ["Top 1 : 100", ""],
-            "DEX_highlight": ["Top 1 : 100", ""],
-            "Call_TEX_Highlight": ["Top 1 : 100", ""],
-            "Put_TEX_Highlight": ["", "Top 1 : 90"],
-            "TEX_highlight": ["", "Top 1 : 90"],
-            "Call_IVxOI_Highlight": ["Top 1 : 100", ""],
-            "Put_IVxOI_Highlight": ["", "Top 1 : 90"],
+            "Call_Vanna_Highlight": ["Top 1 : 100.12", ""],
+            "Put_Vanna_Highlight": ["", "Bottom 1 : 90.99"],
+            "Net_GEX_Highlight": ["Top 1 : 100.12", ""],
+            "DEX_highlight": ["Top 1 : 100.12", ""],
+            "Call_TEX_Highlight": ["Top 1 : 100.12", ""],
+            "Put_TEX_Highlight": ["", "Top 1 : 90.99"],
+            "TEX_highlight": ["", "Top 1 : 90.99"],
+            "Call_IVxOI_Highlight": ["Top 1 : 100.12", ""],
+            "Put_IVxOI_Highlight": ["", "Top 1 : 90.99"],
         },
         index=index,
     )
@@ -115,22 +116,22 @@ def test_highlight_log_records_highlighted_values(tmp_path):
 
     # All highlighted strikes should be logged and sorted descending within the run
     assert log_df.shape[0] == 2
-    assert log_df.loc[0, "Strike"] == 100.0
-    assert log_df.loc[1, "Strike"] == 90.0
+    assert log_df.loc[0, "Strike"] == pytest.approx(100.12)
+    assert log_df.loc[1, "Strike"] == pytest.approx(90.99)
 
     # Only values with highlights should be populated
     first_row = log_df.iloc[0]
-    assert first_row["Net_DEX"] == 1000.0
-    assert first_row["Call_Vanna"] == 80.0
+    assert first_row["Net_DEX"] == pytest.approx(1000.57)
+    assert first_row["Call_Vanna"] == pytest.approx(80.35)
     assert pd.isna(first_row["Put_Vanna"])
-    assert first_row["Call_TEX"] == -120.0
+    assert first_row["Call_TEX"] == pytest.approx(-120.68)
     assert pd.isna(first_row["Put_TEX"])
 
     second_row = log_df.iloc[1]
     assert pd.isna(second_row["Call_Vanna"])
-    assert second_row["Put_Vanna"] == -90.0
+    assert second_row["Put_Vanna"] == pytest.approx(-90.99)
     assert pd.isna(second_row["Net_GEX"])
-    assert second_row["Put_TEX"] == -180.0
-    assert second_row["Net_TEX"] == -260.0
-    assert second_row["Put_IVxOI"] == 18.0
+    assert second_row["Put_TEX"] == pytest.approx(-180.65)
+    assert second_row["Net_TEX"] == pytest.approx(-260.35)
+    assert second_row["Put_IVxOI"] == pytest.approx(18.99)
 

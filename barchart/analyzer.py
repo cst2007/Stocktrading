@@ -956,6 +956,17 @@ class BarchartOptionsAnalyzer:
             ascending=[True, False],
             ignore_index=True,
         )
+
+        numeric_columns = [
+            column
+            for column in combined_df.columns
+            if column not in {"Ticker", "Expiry", "Run_Timestamp"}
+        ]
+        for column in numeric_columns:
+            combined_df[column] = pd.to_numeric(
+                combined_df[column], errors="coerce"
+            ).round(2)
+
         combined_df.to_csv(highlight_log_path, index=False)
         logger.info("Updated highlight log CSV at %s", highlight_log_path)
 
