@@ -143,6 +143,7 @@ def test_totals_row_is_appended_when_requested():
     totals_row = metrics.iloc[-1]
     assert totals_row["Strike"] == "Total"
     assert totals_row["Call_Vanna_Highlight"] == ""
+    assert totals_row["Put_Vanna_Highlight"] == ""
 
     data_only = metrics.iloc[:-1]
     expected_net_gex_total = pd.to_numeric(data_only["Net_GEX"], errors="coerce").sum()
@@ -158,6 +159,9 @@ def test_columns_can_be_dropped_from_output():
         "IV_Direction",
         "Rel_Dist",
         "Top5_Regime_Energy_Bias",
+        "Call_IV",
+        "Put_IV",
+        "Median_IVxOI",
     }
     metrics = compute_derived_metrics(
         df,
@@ -171,6 +175,20 @@ def test_columns_can_be_dropped_from_output():
     for column in exclusions:
         assert column not in metrics.columns
     assert "Net_GEX" in metrics.columns
+
+
+def test_put_vanna_highlight_marks_top_strikes():
+    df = _build_sample_frame()
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+        iv_direction="up",
+    )
+
+    highlighted = metrics.loc[metrics["Put_Vanna_Highlight"] == "highlight"]
+    top_put_values = metrics["Put_Vanna"].nlargest(3)
+    assert set(highlighted["Strike"]) == set(metrics.loc[top_put_values.index, "Strike"])
 
 
 def test_invalid_direction_raises_error():

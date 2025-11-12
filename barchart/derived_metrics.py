@@ -35,6 +35,7 @@ DERIVED_CSV_HEADER = [
     "Rel_Dist",
     "Top5_Regime_Energy_Bias",
     "Call_Vanna_Highlight",
+    "Put_Vanna_Highlight",
     "Net_GEX_Highlight",
 ]
 
@@ -236,6 +237,7 @@ def compute_derived_metrics(
         metrics["Rel_Dist"] = pd.NA
 
     metrics["Call_Vanna_Highlight"] = ""
+    metrics["Put_Vanna_Highlight"] = ""
     metrics["Net_GEX_Highlight"] = ""
 
     metrics["Top5_Regime_Energy_Bias"] = ""
@@ -245,6 +247,11 @@ def compute_derived_metrics(
         if call_count:
             call_top = metrics["Call_Vanna"].nlargest(min(3, call_count)).index
             metrics.loc[call_top, "Call_Vanna_Highlight"] = "highlight"
+
+        put_count = int(metrics["Put_Vanna"].count())
+        if put_count:
+            put_top = metrics["Put_Vanna"].nlargest(min(3, put_count)).index
+            metrics.loc[put_top, "Put_Vanna_Highlight"] = "highlight"
 
         net_count = int(metrics["Net_GEX"].count())
         if net_count:

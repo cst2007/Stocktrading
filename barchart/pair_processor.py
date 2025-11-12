@@ -6,9 +6,12 @@ import logging
 import re
 import shutil
 from dataclasses import dataclass
+from numbers import Number
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Sequence
+
+import pandas as pd
 
 from .analyzer import BarchartOptionsAnalyzer, ProcessingResult
 from .ai_insights import AIInsightsConfigurationError, generate_ai_insight
@@ -191,6 +194,9 @@ def process_pair(
             "IV_Direction",
             "Rel_Dist",
             "Top5_Regime_Energy_Bias",
+            "Call_IV",
+            "Put_IV",
+            "Median_IVxOI",
         }
         if exclude_spx_columns
         else None
@@ -212,7 +218,8 @@ def process_pair(
         f"{calculation_time.strftime('%Y%m%dT%H%M%SZ')}.csv"
     )
     derived_path = derived_dir / derived_filename
-    derived_df.to_csv(derived_path, index=False)
+    formatted_derived_df = _format_derived_numeric_values(derived_df)
+    formatted_derived_df.to_csv(derived_path, index=False)
 
     insights_dir = derived_dir / "insights"
     insights_info: Dict[str, object] | None = None
@@ -298,6 +305,24 @@ def _derive_combined_filename(pair: OptionFilePair) -> str:
     expiry = pair.expiry.replace("/", "-") if pair.expiry != "UNKNOWN" else "unknown"
     ticker = pair.ticker.replace("/", "-") or "unknown"
     return f"unified_{ticker}_{expiry}.csv"
+
+
+def _format_derived_numeric_values(df: pd.DataFrame) -> pd.DataFrame:
+    formatted = df.copy()
+
+    def _format_value(value: object) -> object:
+        if pd.isna(value):
+            return ""
+        if isinstance(value, str):
+            return value
+        if isinstance(value, Number):
+            return format(float(value), ",") if isinstance(value, float) else format(value, ",")
+        return value
+
+    for column in formatted.columns:
+        formatted[column] = formatted[column].apply(_format_value)
+
+    return formatted
 
 
 __all__ = ["OptionFilePair", "discover_pairs", "process_pair"]
