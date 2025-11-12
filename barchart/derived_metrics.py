@@ -9,7 +9,6 @@ import pandas as pd
 
 DERIVED_CSV_HEADER = [
     "Strike",
-    "DateTime",
     "Call_Vanna",
     "Call_Vanna_Highlight",
     "Put_Vanna",
@@ -40,6 +39,7 @@ DERIVED_CSV_HEADER = [
     "Call_Vanna_Ratio",
     "Put_Vanna_Ratio",
     "Vanna_GEX_Total",
+    "DateTime",
     "Energy_Score",
     "Regime",
     "Dealer_Bias",
@@ -182,7 +182,6 @@ def compute_derived_metrics(
     metrics = pd.DataFrame(
         {
             "Strike": unified_df["Strike"].astype(float),
-            "DateTime": timestamp_str,
             "Call_Vanna": unified_df["call_vanna"].astype(float),
             "Put_Vanna": unified_df["puts_vanna"].astype(float),
             "Net_Vanna": unified_df["net_vanna"].astype(float),
@@ -244,6 +243,12 @@ def compute_derived_metrics(
     metrics["Call_Vanna_Ratio"] = metrics["Call_Vanna_Ratio"].astype("Float64").round(2)
     metrics["Put_Vanna_Ratio"] = metrics["Put_Vanna_Ratio"].astype("Float64").round(2)
     metrics["Vanna_GEX_Total"] = metrics["Vanna_GEX_Total"].astype("Float64").round(2)
+
+    metrics.insert(
+        metrics.columns.get_loc("Vanna_GEX_Total") + 1,
+        "DateTime",
+        timestamp_str,
+    )
 
     median_ivxoi = float(metrics["IVxOI"].median(skipna=True)) if not metrics["IVxOI"].dropna().empty else None
     metrics["Median_IVxOI"] = median_ivxoi
