@@ -96,7 +96,7 @@ def test_highlight_log_records_highlighted_values(tmp_path):
     highlight_path = tmp_path / "highlight_logs" / "TEST_highlight_log.csv"
     assert highlight_path.exists()
 
-    log_df = pd.read_csv(highlight_path)
+    log_df = pd.read_csv(highlight_path, thousands=",", na_values=[""], keep_default_na=True)
     expected_columns = [
         "Ticker",
         "Expiry",
@@ -114,24 +114,30 @@ def test_highlight_log_records_highlighted_values(tmp_path):
     ]
     assert list(log_df.columns) == expected_columns
 
-    # All highlighted strikes should be logged and sorted descending within the run
+    # All highlighted strikes should be logged and sorted by ticker then strike
     assert log_df.shape[0] == 2
-    assert log_df.loc[0, "Strike"] == pytest.approx(100.12)
-    assert log_df.loc[1, "Strike"] == pytest.approx(90.99)
+    assert log_df.loc[0, "Strike"] == pytest.approx(90.99)
+    assert log_df.loc[1, "Strike"] == pytest.approx(100.12)
 
     # Only values with highlights should be populated
     first_row = log_df.iloc[0]
-    assert first_row["Net_DEX"] == pytest.approx(1000.57)
-    assert first_row["Call_Vanna"] == pytest.approx(80.35)
-    assert pd.isna(first_row["Put_Vanna"])
-    assert first_row["Call_TEX"] == pytest.approx(-120.68)
-    assert pd.isna(first_row["Put_TEX"])
+    assert pd.isna(first_row["Net_DEX"])
+    assert pd.isna(first_row["Call_Vanna"])
+    assert first_row["Put_Vanna"] == pytest.approx(-90.99)
+    assert pd.isna(first_row["Net_GEX"])
+    assert pd.isna(first_row["Call_TEX"])
+    assert first_row["Put_TEX"] == pytest.approx(-180.65)
+    assert first_row["Net_TEX"] == pytest.approx(-260.35)
+    assert first_row["Put_IVxOI"] == pytest.approx(18.99)
 
     second_row = log_df.iloc[1]
-    assert pd.isna(second_row["Call_Vanna"])
-    assert second_row["Put_Vanna"] == pytest.approx(-90.99)
-    assert pd.isna(second_row["Net_GEX"])
-    assert second_row["Put_TEX"] == pytest.approx(-180.65)
-    assert second_row["Net_TEX"] == pytest.approx(-260.35)
-    assert second_row["Put_IVxOI"] == pytest.approx(18.99)
+    assert second_row["Net_DEX"] == pytest.approx(1000.57)
+    assert second_row["Call_Vanna"] == pytest.approx(80.35)
+    assert pd.isna(second_row["Put_Vanna"])
+    assert second_row["Call_TEX"] == pytest.approx(-120.68)
+    assert pd.isna(second_row["Put_TEX"])
+
+    # Confirm numbers are written with thousands separators in the CSV output
+    csv_contents = highlight_path.read_text(encoding="utf-8")
+    assert '"1,000.57"' in csv_contents
 
