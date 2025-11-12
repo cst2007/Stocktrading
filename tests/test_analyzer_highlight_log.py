@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
+import numpy as np
 import pytest
 import pandas as pd
 
@@ -123,30 +124,35 @@ def test_highlight_log_records_highlighted_values(tmp_path):
     assert log_df.loc[0, "Strike"] == pytest.approx(90.99)
     assert log_df.loc[1, "Strike"] == pytest.approx(100.12)
 
-    # Only values with highlights should be populated
+    # All values from the summary row should be preserved in the log
     first_row = log_df.iloc[0]
-    assert pd.isna(first_row["Net_DEX"])
-    assert pd.isna(first_row["Call_Vanna"])
-    assert first_row["Put_Vanna"] == pytest.approx(-90.99)
-    assert pd.isna(first_row["Net_GEX"])
-    assert pd.isna(first_row["Call_TEX"])
-    assert first_row["Put_TEX"] == pytest.approx(-180.65)
-    assert first_row["Net_TEX"] == pytest.approx(-260.35)
-    assert first_row["Put_IVxOI"] == pytest.approx(18.99)
+    assert first_row["Net_DEX"] == pytest.approx(950.12, rel=1e-3)
+    assert first_row["Call_Vanna"] == pytest.approx(40.79, rel=1e-3)
+    assert first_row["Put_Vanna"] == pytest.approx(-90.99, rel=1e-3)
+    assert first_row["Net_GEX"] == pytest.approx(-200.43, rel=1e-3)
+    assert first_row["Call_TEX"] == pytest.approx(-80.99, rel=1e-3)
+    assert first_row["Put_TEX"] == pytest.approx(-180.65, rel=1e-3)
+    assert first_row["Net_TEX"] == pytest.approx(-260.35, rel=1e-3)
+    assert first_row["Call_IVxOI"] == pytest.approx(12.35, rel=1e-3)
+    assert first_row["Put_IVxOI"] == pytest.approx(18.99, rel=1e-3)
 
     second_row = log_df.iloc[1]
-    assert second_row["Net_DEX"] == pytest.approx(1000.57)
-    assert second_row["Call_Vanna"] == pytest.approx(80.35)
-    assert pd.isna(second_row["Put_Vanna"])
-    assert second_row["Call_TEX"] == pytest.approx(-120.68)
-    assert pd.isna(second_row["Put_TEX"])
+    assert second_row["Net_DEX"] == pytest.approx(1000.57, rel=1e-3)
+    assert second_row["Call_Vanna"] == pytest.approx(80.35, rel=1e-3)
+    assert second_row["Put_Vanna"] == pytest.approx(-30.43, rel=1e-3)
+    assert second_row["Net_GEX"] == pytest.approx(150.68, rel=1e-3)
+    assert second_row["Call_TEX"] == pytest.approx(-120.68, rel=1e-3)
+    assert second_row["Put_TEX"] == pytest.approx(-60.54, rel=1e-3)
+    assert second_row["Net_TEX"] == pytest.approx(-180.99, rel=1e-3)
+    assert second_row["Call_IVxOI"] == pytest.approx(15.79, rel=1e-3)
+    assert second_row["Put_IVxOI"] == pytest.approx(10.65, rel=1e-3)
 
     # Confirm numbers are written with thousands separators in the CSV output
     csv_contents = highlight_path.read_text(encoding="utf-8")
     assert '"1,000.57"' in csv_contents
 
 
-def test_highlight_log_preserves_tracked_strikes_without_new_highlights(tmp_path):
+def test_highlight_log_appends_full_rows_for_successive_runs(tmp_path):
     analyzer = BarchartOptionsAnalyzer(create_charts=False)
     initial_result = _build_processing_result(tmp_path)
     analyzer._write_outputs(initial_result)
@@ -190,6 +196,14 @@ def test_highlight_log_preserves_tracked_strikes_without_new_highlights(tmp_path
     summary_df.loc[100.1234, "Put_IVxOI"] = 11.45
     summary_df.loc[90.9876, "Put_IVxOI"] = 19.21
 
+    summary_df.loc[100.1234, "Call_Vanna_Highlight"] = "Top 1 : 100.12"
+    summary_df.loc[100.1234, "Net_GEX_Highlight"] = "Top 1 : 100.12"
+    summary_df.loc[100.1234, "DEX_highlight"] = "Top 1 : 100.12"
+    summary_df.loc[90.9876, "Put_Vanna_Highlight"] = "Bottom 1 : 90.99"
+    summary_df.loc[90.9876, "Put_TEX_Highlight"] = "Top 1 : 90.99"
+    summary_df.loc[90.9876, "TEX_highlight"] = "Top 1 : 90.99"
+    summary_df.loc[90.9876, "Put_IVxOI_Highlight"] = "Top 1 : 90.99"
+
     follow_up_result = _build_processing_result(tmp_path, summary_df=summary_df)
     analyzer._write_outputs(follow_up_result)
 
@@ -198,32 +212,45 @@ def test_highlight_log_preserves_tracked_strikes_without_new_highlights(tmp_path
 
     assert log_df.shape[0] == 4
 
-    second_run_mask = log_df["Run_Timestamp"] == "2024-05-02T12:00:00Z"
-    assert second_run_mask.sum() == 2
+    first_strike_rows = log_df.loc[np.isclose(log_df["Strike"], 90.99, rtol=1e-3)].reset_index(drop=True)
+    assert list(first_strike_rows["Run_Timestamp"]) == [
+        "2024-05-02T12:00:00Z",
+        "2024-05-01T12:00:00Z",
+    ]
+    latest_first_strike = first_strike_rows.iloc[0]
+    assert latest_first_strike["Net_DEX"] == pytest.approx(940.45)
+    assert latest_first_strike["Call_Vanna"] == pytest.approx(52.66)
+    assert latest_first_strike["Put_Vanna"] == pytest.approx(-85.77)
+    assert latest_first_strike["Net_GEX"] == pytest.approx(-215.88)
+    assert latest_first_strike["Call_TEX"] == pytest.approx(-95.11)
+    assert latest_first_strike["Put_TEX"] == pytest.approx(-165.22)
+    assert latest_first_strike["Net_TEX"] == pytest.approx(-260.33)
+    assert latest_first_strike["Call_IVxOI"] == pytest.approx(13.67)
+    assert latest_first_strike["Put_IVxOI"] == pytest.approx(19.21)
 
-    second_run_rows = log_df.loc[second_run_mask].sort_values("Strike").reset_index(drop=True)
+    second_first_strike = first_strike_rows.iloc[1]
+    assert second_first_strike["Net_DEX"] == pytest.approx(950.12, rel=1e-3)
+    assert second_first_strike["Call_Vanna"] == pytest.approx(40.79, rel=1e-3)
+    assert second_first_strike["Put_Vanna"] == pytest.approx(-90.99, rel=1e-3)
 
-    first_second_row = second_run_rows.iloc[0]
-    assert first_second_row["Strike"] == pytest.approx(90.99, rel=1e-3)
-    assert first_second_row["Net_DEX"] == pytest.approx(940.45)
-    assert first_second_row["Call_Vanna"] == pytest.approx(52.66)
-    assert first_second_row["Put_Vanna"] == pytest.approx(-85.77)
-    assert first_second_row["Net_GEX"] == pytest.approx(-215.88)
-    assert first_second_row["Call_TEX"] == pytest.approx(-95.11)
-    assert first_second_row["Put_TEX"] == pytest.approx(-165.22)
-    assert first_second_row["Net_TEX"] == pytest.approx(-260.33)
-    assert first_second_row["Call_IVxOI"] == pytest.approx(13.67)
-    assert first_second_row["Put_IVxOI"] == pytest.approx(19.21)
+    second_strike_rows = log_df.loc[np.isclose(log_df["Strike"], 100.12, rtol=1e-3)].reset_index(drop=True)
+    assert list(second_strike_rows["Run_Timestamp"]) == [
+        "2024-05-02T12:00:00Z",
+        "2024-05-01T12:00:00Z",
+    ]
+    latest_second_strike = second_strike_rows.iloc[0]
+    assert latest_second_strike["Net_DEX"] == pytest.approx(1200.12)
+    assert latest_second_strike["Call_Vanna"] == pytest.approx(75.55)
+    assert latest_second_strike["Put_Vanna"] == pytest.approx(-28.44)
+    assert latest_second_strike["Net_GEX"] == pytest.approx(165.43)
+    assert latest_second_strike["Call_TEX"] == pytest.approx(-130.22)
+    assert latest_second_strike["Put_TEX"] == pytest.approx(-70.33)
+    assert latest_second_strike["Net_TEX"] == pytest.approx(-200.55)
+    assert latest_second_strike["Call_IVxOI"] == pytest.approx(16.23)
+    assert latest_second_strike["Put_IVxOI"] == pytest.approx(11.45)
 
-    second_second_row = second_run_rows.iloc[1]
-    assert second_second_row["Strike"] == pytest.approx(100.12, rel=1e-3)
-    assert second_second_row["Net_DEX"] == pytest.approx(1200.12)
-    assert second_second_row["Call_Vanna"] == pytest.approx(75.55)
-    assert second_second_row["Put_Vanna"] == pytest.approx(-28.44)
-    assert second_second_row["Net_GEX"] == pytest.approx(165.43)
-    assert second_second_row["Call_TEX"] == pytest.approx(-130.22)
-    assert second_second_row["Put_TEX"] == pytest.approx(-70.33)
-    assert second_second_row["Net_TEX"] == pytest.approx(-200.55)
-    assert second_second_row["Call_IVxOI"] == pytest.approx(16.23)
-    assert second_second_row["Put_IVxOI"] == pytest.approx(11.45)
+    second_second_strike = second_strike_rows.iloc[1]
+    assert second_second_strike["Net_DEX"] == pytest.approx(1000.57, rel=1e-3)
+    assert second_second_strike["Call_Vanna"] == pytest.approx(80.35, rel=1e-3)
+    assert second_second_strike["Put_Vanna"] == pytest.approx(-30.43, rel=1e-3)
 
