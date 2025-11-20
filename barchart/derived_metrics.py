@@ -8,6 +8,8 @@ from typing import Collection, Sequence
 import pandas as pd
 
 DERIVED_CSV_HEADER = [
+    "Put VEX",
+    "Put VEX Rank",
     "Strike",
     "Call_Vanna",
     "Call_Vanna_Highlight",
@@ -256,6 +258,7 @@ def compute_derived_metrics(
     iv_direction: str = "down",
     drop_columns: Sequence[str] | None = None,
     include_totals_row: bool = False,
+    include_put_vex: bool = False,
 ) -> pd.DataFrame:
     """Return the Phase 1 derived exposure metrics for ``unified_df``."""
 
@@ -291,6 +294,10 @@ def compute_derived_metrics(
 
     direction_value = _validate_iv_direction(iv_direction)
 
+    put_open_interest = pd.to_numeric(
+        unified_df["puts_open_interest"], errors="coerce"
+    ).astype(float)
+
     metrics = pd.DataFrame(
         {
             "Strike": unified_df["Strike"].astype(float),
@@ -307,7 +314,7 @@ def compute_derived_metrics(
             ),
             "Put_DEX": (
                 unified_df["puts_delta"].astype(float)
-                * unified_df["puts_open_interest"].astype(float)
+                * put_open_interest
                 * 100
             ),
             "Call_TEX": (
@@ -317,7 +324,7 @@ def compute_derived_metrics(
             ),
             "Put_TEX": (
                 unified_df["puts_theta"].astype(float)
-                * unified_df["puts_open_interest"].astype(float)
+                * put_open_interest
                 * 100
             ),
             "Call_IV": unified_df["call_iv"].astype(float).round(1),
@@ -326,6 +333,22 @@ def compute_derived_metrics(
             "Put_IVxOI": unified_df["puts_oi_iv"].astype(float).round(1),
         }
     )
+
+    if include_put_vex:
+        put_vex_values = (
+            metrics["Put_Vanna"].astype(float)
+            * metrics["Put_IV"].astype(float)
+            * put_open_interest
+        ).round(2)
+
+        metrics.insert(0, "Put VEX", put_vex_values)
+        metrics.insert(1, "Put VEX Rank", "")
+
+        negative_put_vex = put_vex_values[put_vex_values < 0]
+        if not negative_put_vex.empty:
+            ranked_indices = negative_put_vex.nsmallest(min(5, len(negative_put_vex))).index
+            for rank, idx in enumerate(ranked_indices, start=1):
+                metrics.at[idx, "Put VEX Rank"] = f"Rank {rank}"
 
     metrics["Net_DEX"] = metrics["Call_DEX"] + metrics["Put_DEX"]
     metrics["Net_TEX"] = metrics["Call_TEX"] + metrics["Put_TEX"]

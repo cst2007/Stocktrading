@@ -210,6 +210,7 @@ def process_pair(
         iv_direction=iv_direction,
         drop_columns=spx_exclusions,
         include_totals_row=True,
+        include_put_vex=exclude_spx_columns,
     )
     safe_ticker = pair.ticker.replace("/", "-") or "unknown"
     safe_expiry = (
