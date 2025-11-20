@@ -20,9 +20,11 @@ from .derived_metrics import compute_derived_metrics
 
 logger = logging.getLogger(__name__)
 
+# Accept both weekly and monthly exports. The trailing numeric segment is treated
+# generically so existing grouping logic continues to work for either cadence.
 _PAIR_PATTERN = re.compile(
     r"^(?P<ticker>[a-zA-Z0-9$]+)-(?P<kind>options|volatility-greeks)-exp-"
-    r"(?P<expiry>\d{4}-\d{2}-\d{2})-weekly-(?P<week>\d+)-strikes(?P<suffix>.*)\.csv$",
+    r"(?P<expiry>\d{4}-\d{2}-\d{2})-(?:weekly|monthly)-(?P<week>\d+)-strikes(?P<suffix>.*)\.csv$",
     re.IGNORECASE,
 )
 
