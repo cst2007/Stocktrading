@@ -358,9 +358,11 @@ def compute_derived_metrics(
         metrics.insert(2, "Call VEX", call_vex_values)
         metrics.insert(3, "Call VEX Rank", "")
 
-        positive_put_vex = put_vex_values[put_vex_values > 0]
-        if not positive_put_vex.empty:
-            ranked_indices = positive_put_vex.nlargest(min(5, len(positive_put_vex))).index
+        negative_put_vex = put_vex_values[put_vex_values < 0]
+        if not negative_put_vex.empty:
+            ranked_indices = negative_put_vex.nsmallest(
+                min(7, len(negative_put_vex))
+            ).index
             for rank, idx in enumerate(ranked_indices, start=1):
                 strike_value = _format_strike(metrics.at[idx, "Strike"])
                 metrics.at[idx, "Put VEX Rank"] = f"Rank {rank}: {strike_value}"
