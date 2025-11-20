@@ -13,6 +13,8 @@ import pandas as pd
 # column order returned by :func:`combine_option_files` so downstream tooling can
 # rely on the human friendly labels produced by the CLI.
 COMBINED_CSV_HEADER = [
+    "Put VEX",
+    "Put VEX Rank",
     "Strike",
     "call_volume",
     "call_open_interest",
@@ -170,6 +172,16 @@ def combine_option_files(
         * 100
     )
 
+    merged["put_vex"] = (
+        merged["puts_vanna"] * merged["puts_iv"] * merged["puts_open_interest"]
+    )
+    put_vex_negative_ranks = (
+        merged["put_vex"].where(merged["put_vex"] < 0).rank(method="first", ascending=True)
+    )
+    merged["put_vex_rank"] = put_vex_negative_ranks.where(put_vex_negative_ranks <= 5).astype(
+        "Int64"
+    )
+
     merged["call_oi_iv"] = merged["call_open_interest"] * merged["call_iv"]
     merged["puts_oi_iv"] = merged["puts_open_interest"] * merged["puts_iv"]
 
@@ -189,6 +201,7 @@ def combine_option_files(
         "call_theta": 4,
         "call_gex": 1,
         "call_vanna": 1,
+        "put_vex": 1,
         "IVxOI": 1,
         "puts_gex": 1,
         "puts_vanna": 1,
@@ -206,6 +219,8 @@ def combine_option_files(
         merged[column] = merged[column].round(decimals)
 
     columns = [
+        "put_vex",
+        "put_vex_rank",
         "Strike",
         "call_volume",
         "call_open_interest",
