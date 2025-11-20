@@ -447,7 +447,16 @@ def compute_derived_metrics(
     if drop_set:
         metrics = metrics.drop(columns=sorted(drop_set))
 
-    column_order = [column for column in DERIVED_CSV_HEADER if column in metrics.columns]
+    column_order = (
+        ["Strike"]
+        + [
+            column
+            for column in DERIVED_CSV_HEADER
+            if column != "Strike" and column in metrics.columns
+        ]
+        if "Strike" in metrics.columns
+        else [column for column in DERIVED_CSV_HEADER if column in metrics.columns]
+    )
     result = metrics.loc[:, column_order].copy()
 
     has_totals = False
