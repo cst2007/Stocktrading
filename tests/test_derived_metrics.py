@@ -191,6 +191,33 @@ def test_columns_can_be_dropped_from_output():
     assert "Net_GEX" in metrics.columns
 
 
+def test_put_vex_columns_populated_in_spx_mode():
+    df = _build_sample_frame()
+    df.loc[0, "puts_vanna"] = -5.0
+    df.loc[2, "puts_vanna"] = -12.0
+    df["net_vanna"] = df["call_vanna"] + df["puts_vanna"]
+
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+        iv_direction="up",
+        include_put_vex=True,
+    )
+
+    assert metrics.columns[0] == "Put VEX"
+    assert metrics.columns[1] == "Put VEX Rank"
+
+    put_vex_value = metrics.loc[metrics["Strike"] == 100, "Put VEX"].iloc[0]
+    expected_put_vex = df.loc[0, "puts_vanna"] * df.loc[0, "puts_iv"] * df.loc[0, "puts_open_interest"]
+    assert put_vex_value == pytest.approx(round(expected_put_vex, 2))
+
+    ranked_rows = metrics.loc[metrics["Put VEX Rank"] != ""]
+    assert len(ranked_rows) == 2
+    assert metrics.loc[metrics["Strike"] == 102, "Put VEX Rank"].iloc[0] == "Rank 1"
+    assert metrics.loc[metrics["Strike"] == 100, "Put VEX Rank"].iloc[0] == "Rank 2"
+
+
 def test_put_vanna_highlight_marks_top_strikes():
     df = _build_sample_frame()
     metrics = compute_derived_metrics(
