@@ -438,10 +438,18 @@ class BarchartOptionsAnalyzer:
 
         # Fallback to classic side-by-side layout with ".1" suffixes.
         base_metrics = {
+            "Last": ("last", False),
+            "Bid": ("bid", False),
+            "Ask": ("ask", False),
+            "Change": ("change", False),
+            "Volume": ("volume", False),
+            "Open Int": ("open_interest", False),
+            "Open Interest": ("open_interest", False),
             "IV": ("iv", True),
             "Delta": ("delta", False),
             "Gamma": ("gamma", False),
             "Vega": ("vega", False),
+            "Theta": ("theta", False),
         }
         call_columns = {
             column: meta
