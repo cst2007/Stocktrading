@@ -10,6 +10,8 @@ import pandas as pd
 DERIVED_CSV_HEADER = [
     "Put VEX",
     "Put VEX Rank",
+    "Call VEX",
+    "Call VEX Rank",
     "Strike",
     "Call_Vanna",
     "Call_Vanna_Highlight",
@@ -294,6 +296,9 @@ def compute_derived_metrics(
 
     direction_value = _validate_iv_direction(iv_direction)
 
+    call_open_interest = pd.to_numeric(
+        unified_df["call_open_interest"], errors="coerce"
+    ).astype(float)
     put_open_interest = pd.to_numeric(
         unified_df["puts_open_interest"], errors="coerce"
     ).astype(float)
@@ -309,7 +314,7 @@ def compute_derived_metrics(
             "Net_GEX": unified_df["net_gex"].astype(float),
             "Call_DEX": (
                 unified_df["call_delta"].astype(float)
-                * unified_df["call_open_interest"].astype(float)
+                * call_open_interest
                 * 100
             ),
             "Put_DEX": (
@@ -319,7 +324,7 @@ def compute_derived_metrics(
             ),
             "Call_TEX": (
                 unified_df["call_theta"].astype(float)
-                * unified_df["call_open_interest"].astype(float)
+                * call_open_interest
                 * 100
             ),
             "Put_TEX": (
@@ -344,11 +349,28 @@ def compute_derived_metrics(
         metrics.insert(0, "Put VEX", put_vex_values)
         metrics.insert(1, "Put VEX Rank", "")
 
-        negative_put_vex = put_vex_values[put_vex_values < 0]
-        if not negative_put_vex.empty:
-            ranked_indices = negative_put_vex.nsmallest(min(5, len(negative_put_vex))).index
+        call_vex_values = (
+            metrics["Call_Vanna"].astype(float)
+            * metrics["Call_IV"].astype(float)
+            * call_open_interest
+        ).round(2)
+
+        metrics.insert(2, "Call VEX", call_vex_values)
+        metrics.insert(3, "Call VEX Rank", "")
+
+        positive_put_vex = put_vex_values[put_vex_values > 0]
+        if not positive_put_vex.empty:
+            ranked_indices = positive_put_vex.nlargest(min(5, len(positive_put_vex))).index
             for rank, idx in enumerate(ranked_indices, start=1):
-                metrics.at[idx, "Put VEX Rank"] = f"Rank {rank}"
+                strike_value = _format_strike(metrics.at[idx, "Strike"])
+                metrics.at[idx, "Put VEX Rank"] = f"Rank {rank}: {strike_value}"
+
+        positive_call_vex = call_vex_values[call_vex_values > 0]
+        if not positive_call_vex.empty:
+            ranked_indices = positive_call_vex.nlargest(min(5, len(positive_call_vex))).index
+            for rank, idx in enumerate(ranked_indices, start=1):
+                strike_value = _format_strike(metrics.at[idx, "Strike"])
+                metrics.at[idx, "Call VEX Rank"] = f"Rank {rank}: {strike_value}"
 
     metrics["Net_DEX"] = metrics["Call_DEX"] + metrics["Put_DEX"]
     metrics["Net_TEX"] = metrics["Call_TEX"] + metrics["Put_TEX"]

@@ -193,8 +193,20 @@ def test_columns_can_be_dropped_from_output():
 
 def test_put_vex_columns_populated_in_spx_mode():
     df = _build_sample_frame()
-    df.loc[0, "puts_vanna"] = -5.0
-    df.loc[2, "puts_vanna"] = -12.0
+    df.loc[0, "puts_vanna"] = 5.0
+    df.loc[1, "puts_vanna"] = 15.0
+    df.loc[2, "puts_vanna"] = 18.0
+    df.loc[3, "puts_vanna"] = 8.0
+    df.loc[4, "puts_vanna"] = 12.0
+    df.loc[5, "puts_vanna"] = 20.0
+
+    df.loc[0, "call_vanna"] = 10.0
+    df.loc[1, "call_vanna"] = 15.0
+    df.loc[2, "call_vanna"] = 8.0
+    df.loc[3, "call_vanna"] = 25.0
+    df.loc[4, "call_vanna"] = 12.0
+    df.loc[5, "call_vanna"] = 20.0
+
     df["net_vanna"] = df["call_vanna"] + df["puts_vanna"]
 
     metrics = compute_derived_metrics(
@@ -205,17 +217,36 @@ def test_put_vex_columns_populated_in_spx_mode():
         include_put_vex=True,
     )
 
-    assert metrics.columns[0] == "Put VEX"
-    assert metrics.columns[1] == "Put VEX Rank"
+    assert metrics.columns[1:5].tolist() == [
+        "Put VEX",
+        "Put VEX Rank",
+        "Call VEX",
+        "Call VEX Rank",
+    ]
 
     put_vex_value = metrics.loc[metrics["Strike"] == 100, "Put VEX"].iloc[0]
     expected_put_vex = df.loc[0, "puts_vanna"] * df.loc[0, "puts_iv"] * df.loc[0, "puts_open_interest"]
     assert put_vex_value == pytest.approx(round(expected_put_vex, 2))
 
+    call_vex_value = metrics.loc[metrics["Strike"] == 100, "Call VEX"].iloc[0]
+    expected_call_vex = df.loc[0, "call_vanna"] * df.loc[0, "call_iv"] * df.loc[0, "call_open_interest"]
+    assert call_vex_value == pytest.approx(round(expected_call_vex, 2))
+
     ranked_rows = metrics.loc[metrics["Put VEX Rank"] != ""]
-    assert len(ranked_rows) == 2
-    assert metrics.loc[metrics["Strike"] == 102, "Put VEX Rank"].iloc[0] == "Rank 1"
-    assert metrics.loc[metrics["Strike"] == 100, "Put VEX Rank"].iloc[0] == "Rank 2"
+    assert len(ranked_rows) == 5
+    assert metrics.loc[metrics["Strike"] == 102, "Put VEX Rank"].iloc[0] == "Rank 1: 102"
+    assert metrics.loc[metrics["Strike"] == 105, "Put VEX Rank"].iloc[0] == "Rank 2: 105"
+    assert metrics.loc[metrics["Strike"] == 101, "Put VEX Rank"].iloc[0] == "Rank 3: 101"
+    assert metrics.loc[metrics["Strike"] == 104, "Put VEX Rank"].iloc[0] == "Rank 4: 104"
+    assert metrics.loc[metrics["Strike"] == 103, "Put VEX Rank"].iloc[0] == "Rank 5: 103"
+
+    ranked_call_rows = metrics.loc[metrics["Call VEX Rank"] != ""]
+    assert len(ranked_call_rows) == 5
+    assert metrics.loc[metrics["Strike"] == 101, "Call VEX Rank"].iloc[0] == "Rank 1: 101"
+    assert metrics.loc[metrics["Strike"] == 105, "Call VEX Rank"].iloc[0] == "Rank 2: 105"
+    assert metrics.loc[metrics["Strike"] == 103, "Call VEX Rank"].iloc[0] == "Rank 3: 103"
+    assert metrics.loc[metrics["Strike"] == 102, "Call VEX Rank"].iloc[0] == "Rank 4: 102"
+    assert metrics.loc[metrics["Strike"] == 104, "Call VEX Rank"].iloc[0] == "Rank 5: 104"
 
 
 def test_put_vanna_highlight_marks_top_strikes():
