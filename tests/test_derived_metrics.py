@@ -122,7 +122,7 @@ def test_unknown_direction_is_preserved_and_neutral():
     assert sample_row["IV_Direction"] == "unknown"
 
 
-def test_dgex_dspot_uses_out_of_money_strikes_and_ranks_extremes():
+def test_dgex_dspot_uses_deep_itm_strikes_and_ranks_extremes():
     data = pd.DataFrame(
         {
             "Strike": [100, 105, 110],
@@ -160,22 +160,17 @@ def test_dgex_dspot_uses_out_of_money_strikes_and_ranks_extremes():
     dgex_values = metrics.set_index("Strike")["dGEX/dSpot"].dropna()
 
     assert dgex_values.loc[100.0] == pytest.approx(450.0)
-    assert dgex_values.loc[105.0] == pytest.approx(472.5)
     assert dgex_values.loc[110.0] == pytest.approx(495.0)
 
-    assert metrics.loc[metrics["Strike"] == 105, "dGEX/dSpot"].notna().all()
+    assert metrics.loc[metrics["Strike"] == 105, "dGEX/dSpot"].isna().all()
 
     assert (
         metrics.loc[metrics["Strike"] == 110, "dGEX/dSpot Rank"].iloc[0]
         == "Top 1: 110"
     )
     assert (
-        metrics.loc[metrics["Strike"] == 105, "dGEX/dSpot Rank"].iloc[0]
-        == "Top 2: 105"
-    )
-    assert (
         metrics.loc[metrics["Strike"] == 100, "dGEX/dSpot Rank"].iloc[0]
-        == "Top 3: 100"
+        == "Top 2: 100"
     )
 
 

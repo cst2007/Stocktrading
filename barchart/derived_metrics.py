@@ -443,15 +443,15 @@ def compute_derived_metrics(
 
         call_delta_series = pd.to_numeric(unified_df["call_delta"], errors="coerce")
         put_delta_series = pd.to_numeric(unified_df["puts_delta"], errors="coerce")
-        dgex_selection_mask = call_delta_series.abs().lt(0.6) | put_delta_series.abs().lt(0.6)
+        deep_itm_mask = call_delta_series.abs().ge(0.8) | put_delta_series.abs().ge(0.8)
 
-        dgex_strikes = (
-            pd.to_numeric(unified_df.loc[dgex_selection_mask, "Strike"], errors="coerce")
+        deep_itm_strikes = (
+            pd.to_numeric(unified_df.loc[deep_itm_mask, "Strike"], errors="coerce")
             .dropna()
             .unique()
         )
 
-        if bump_size > 0 and len(dgex_strikes):
+        if bump_size > 0 and len(deep_itm_strikes):
             contract_multiplier = 100.0
             safe_call_gamma = call_gamma.fillna(0)
             safe_put_gamma = put_gamma.fillna(0)
@@ -464,7 +464,7 @@ def compute_derived_metrics(
                 put_component = (safe_put_gamma * safe_put_oi * spot_term).sum()
                 return float(call_component - put_component)
 
-            for strike in dgex_strikes:
+            for strike in deep_itm_strikes:
                 strike_value = float(strike)
                 gex_up = _net_gex_for_spot(strike_value + bump_size)
                 gex_down = _net_gex_for_spot(strike_value - bump_size)
