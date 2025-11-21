@@ -160,18 +160,66 @@ def test_dgex_dspot_uses_deep_itm_strikes_and_ranks_extremes():
     dgex_values = metrics.set_index("Strike")["dGEX/dSpot"].dropna()
 
     assert dgex_values.loc[100.0] == pytest.approx(450.0)
+    assert dgex_values.loc[105.0] == pytest.approx(472.5)
     assert dgex_values.loc[110.0] == pytest.approx(495.0)
-
-    assert metrics.loc[metrics["Strike"] == 105, "dGEX/dSpot"].isna().all()
 
     assert (
         metrics.loc[metrics["Strike"] == 110, "dGEX/dSpot Rank"].iloc[0]
         == "Top 1: 110"
     )
     assert (
-        metrics.loc[metrics["Strike"] == 100, "dGEX/dSpot Rank"].iloc[0]
-        == "Top 2: 100"
+        metrics.loc[metrics["Strike"] == 105, "dGEX/dSpot Rank"].iloc[0]
+        == "Top 2: 105"
     )
+    assert (
+        metrics.loc[metrics["Strike"] == 100, "dGEX/dSpot Rank"].iloc[0]
+        == "Top 3: 100"
+    )
+
+
+def test_dgex_dspot_evaluates_strikes_within_fifteen_steps_of_spot():
+    strike_values = list(range(80, 120))
+    data = pd.DataFrame(
+        {
+            "Strike": strike_values,
+            "call_vanna": [0.0] * len(strike_values),
+            "puts_vanna": [0.0] * len(strike_values),
+            "net_vanna": [0.0] * len(strike_values),
+            "call_gex": [1.0] * len(strike_values),
+            "puts_gex": [0.25] * len(strike_values),
+            "net_gex": [0.75] * len(strike_values),
+            "call_delta": [0.5] * len(strike_values),
+            "puts_delta": [0.5] * len(strike_values),
+            "call_theta": [0.0] * len(strike_values),
+            "puts_theta": [0.0] * len(strike_values),
+            "call_open_interest": [10] * len(strike_values),
+            "puts_open_interest": [5] * len(strike_values),
+            "call_iv": [0.1] * len(strike_values),
+            "puts_iv": [0.1] * len(strike_values),
+            "call_oi_iv": [1.0] * len(strike_values),
+            "puts_oi_iv": [0.5] * len(strike_values),
+            "call_volume": [0] * len(strike_values),
+            "puts_volume": [0] * len(strike_values),
+            "call_gamma": [0.001] * len(strike_values),
+            "puts_gamma": [0.0005] * len(strike_values),
+            "Spot": [100.0] * len(strike_values),
+        }
+    )
+
+    metrics = compute_derived_metrics(
+        data,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=100.0,
+        iv_direction="down",
+    )
+
+    dgex_values = metrics.set_index("Strike")["dGEX/dSpot"]
+
+    populated = dgex_values.dropna()
+    assert len(populated) == 31
+    assert populated.loc[100.0] == pytest.approx(6000.0)
+    assert pd.isna(dgex_values.loc[84.0])
+    assert pd.isna(dgex_values.loc[116.0])
 
 
 def test_top5_column_only_populated_for_top_five():
