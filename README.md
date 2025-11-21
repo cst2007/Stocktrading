@@ -129,6 +129,8 @@ Key options:
 - `--spot-price`: Underlying spot price used for Vanna/GEX calculations (required).
 - `--no-charts`: Skip generating matplotlib PNG charts.
 - `--log-level`: Adjust verbosity (e.g., `DEBUG`).
+- `--debug` / `--no-debug`: When debug mode is enabled (the default), only the first row of each CSV is processed and
+  step-by-step calculation details are logged. Disable it to process full datasets.
 
 When a directory is supplied, every CSV within it is processed and individual summary artifacts are
 written for each file.

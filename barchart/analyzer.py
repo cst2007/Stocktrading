@@ -170,11 +170,13 @@ class BarchartOptionsAnalyzer:
         create_charts: bool = True,
         spot_price: float | None = None,
         iv_direction: str = "down",
+        debug_mode: bool = True,
     ) -> None:
         self.contract_multiplier = contract_multiplier
         self.create_charts = create_charts
         self.spot_price = spot_price
         self.iv_direction = _normalize_iv_direction(iv_direction)
+        self.debug_mode = debug_mode
 
     # ------------------------------------------------------------------
     # Public API
@@ -221,6 +223,22 @@ class BarchartOptionsAnalyzer:
         ticker, expiry = self._parse_metadata_from_filename(path.name)
         df = self._load_csv(path)
         df = self._preprocess(df)
+
+        if self.debug_mode:
+            if df.empty:
+                logger.warning(
+                    "Debug mode enabled but no rows remain after preprocessing for %s",
+                    path,
+                )
+            else:
+                sample_row = df.iloc[0]
+                logger.info(
+                    "Debug mode enabled: limiting analysis to the first row (strike=%s, option_type=%s)",
+                    sample_row.get("strike"),
+                    sample_row.get("option_type"),
+                )
+                df = df.head(1).copy()
+
         metrics = self._compute_metrics(df)
 
         summary_df: pd.DataFrame = metrics["summary_by_strike"].copy()
@@ -578,6 +596,8 @@ class BarchartOptionsAnalyzer:
         df = df.copy()
         open_interest_missing = df.attrs.get("open_interest_missing", False)
 
+        debug_row = df.iloc[0] if self.debug_mode and not df.empty else None
+
         call_mask = df["option_type"] == "call"
         put_mask = df["option_type"] == "put"
 
@@ -592,6 +612,7 @@ class BarchartOptionsAnalyzer:
 
         if has_raw_vanna:
             df["vanna"] = pd.to_numeric(df["vanna"], errors="coerce").fillna(0.0)
+            vanna_source = "provided column"
         elif can_compute_vanna:
             df.loc[call_mask, "vanna"] = (
                 df.loc[call_mask, "open_interest"]
@@ -605,6 +626,7 @@ class BarchartOptionsAnalyzer:
                 * df.loc[put_mask, "vega"]
                 * 100
             )
+            vanna_source = "computed"
         else:
             raise MissingGreeksError(
                 "CSV is missing the data required to compute Vanna (expected delta/vega or a vanna column)."
@@ -624,22 +646,28 @@ class BarchartOptionsAnalyzer:
                 logger.warning(
                     "Open interest missing from CSV; using provided GEX values without adjustment."
                 )
+            gex_source = "provided column"
         elif can_compute_gex:
             df["gex"] = df["gamma"] * df["open_interest"] * gex_factor
             if open_interest_missing:
                 logger.warning(
                     "Open interest was missing; assuming one contract per row for GEX calculations."
                 )
+            gex_source = "computed"
         else:
             if open_interest_missing:
                 logger.warning(
                     "Open interest missing from CSV; defaulting GEX to zero for all rows."
                 )
                 df["gex"] = 0.0
+                gex_source = "defaulted to zero"
             else:
                 raise MissingGreeksError(
                     "CSV is missing the data required to compute GEX (expected gamma or a gex column)."
                 )
+
+        if self.debug_mode and debug_row is not None:
+            self._log_debug_calculations(debug_row, df, gex_factor, gex_source, vanna_source)
 
         totals = df.groupby("option_type")[["gex", "vanna"]].sum()
         call_vanna = float(totals.loc["call", "vanna"]) if "call" in totals.index else 0.0
@@ -828,6 +856,79 @@ class BarchartOptionsAnalyzer:
             "median_ivxoi": median_ivxoi,
             "iv_direction": iv_direction,
         }
+
+    def _log_debug_calculations(
+        self,
+        original_row: pd.Series,
+        computed_df: pd.DataFrame,
+        gex_factor: float,
+        gex_source: str,
+        vanna_source: str,
+    ) -> None:
+        """Emit step-by-step calculations for the sampled debug row."""
+
+        if computed_df.empty:
+            logger.debug("Debug logging skipped: no rows available after computation")
+            return
+
+        calculated_row = computed_df.iloc[0]
+
+        def _fmt(value: object) -> str:
+            if value is None or (isinstance(value, float) and pd.isna(value)):
+                return "nan"
+            try:
+                return f"{float(value):.4f}"
+            except (TypeError, ValueError):
+                return str(value)
+
+        logger.info(
+            "Debug row snapshot | option_type=%s strike=%s open_interest=%s delta=%s gamma=%s vega=%s iv=%s",
+            calculated_row.get("option_type"),
+            _fmt(calculated_row.get("strike")),
+            _fmt(calculated_row.get("open_interest")),
+            _fmt(calculated_row.get("delta")),
+            _fmt(calculated_row.get("gamma")),
+            _fmt(calculated_row.get("vega")),
+            _fmt(calculated_row.get("iv")),
+        )
+
+        if vanna_source == "computed":
+            delta_term = (1 - float(original_row.get("delta", 0))) if str(original_row.get("option_type")) == "call" else float(original_row.get("delta", 0))
+            vanna_value = float(original_row.get("open_interest", 0)) * delta_term * float(original_row.get("vega", 0)) * 100
+            logger.info(
+                "Vanna (%s): open_interest=%s * delta_factor=%s * vega=%s * 100 = %s",
+                vanna_source,
+                _fmt(original_row.get("open_interest")),
+                _fmt(delta_term),
+                _fmt(original_row.get("vega")),
+                _fmt(vanna_value),
+            )
+        else:
+            logger.info("Vanna (%s): using provided value %s", vanna_source, _fmt(calculated_row.get("vanna")))
+
+        if gex_source == "computed":
+            gex_value = float(original_row.get("gamma", 0)) * float(original_row.get("open_interest", 0)) * gex_factor
+            logger.info(
+                "GEX (%s): gamma=%s * open_interest=%s * contract_multiplier=%s = %s",
+                gex_source,
+                _fmt(original_row.get("gamma")),
+                _fmt(original_row.get("open_interest")),
+                _fmt(gex_factor),
+                _fmt(gex_value),
+            )
+        elif gex_source == "defaulted to zero":
+            logger.info(
+                "GEX (%s): gamma/open_interest missing → assuming 0.0 for this row",
+                gex_source,
+            )
+        else:
+            logger.info("GEX (%s): using provided value %s", gex_source, _fmt(calculated_row.get("gex")))
+
+        logger.info(
+            "Final per-row exposures → GEX=%s | Vanna=%s",
+            _fmt(calculated_row.get("gex")),
+            _fmt(calculated_row.get("vanna")),
+        )
 
     def _write_outputs(self, result: ProcessingResult) -> None:
         output_directory = result.output_directory

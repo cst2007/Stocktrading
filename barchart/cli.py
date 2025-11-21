@@ -45,6 +45,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Observed implied volatility trend for the current session.",
     )
     parser.add_argument(
+        "--debug",
+        dest="debug_mode",
+        action="store_true",
+        default=True,
+        help="Enable debug mode (default: enabled) to log step-by-step calculations on a single-row sample.",
+    )
+    parser.add_argument(
+        "--no-debug",
+        dest="debug_mode",
+        action="store_false",
+        help="Disable debug mode to process the full dataset without step logging.",
+    )
+    parser.add_argument(
         "--no-charts",
         action="store_true",
         help="Disable generation of PNG charts for strike curves.",
@@ -75,6 +88,7 @@ def run_cli(args: Iterable[str] | None = None) -> List[str]:
         create_charts=not parsed.no_charts,
         spot_price=parsed.spot_price,
         iv_direction=parsed.iv_direction,
+        debug_mode=parsed.debug_mode,
     )
 
     input_path = Path(parsed.input)
