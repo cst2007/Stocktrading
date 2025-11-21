@@ -197,9 +197,9 @@ def combine_option_files(
         "call_oi_iv": 1,
         # Preserve precise deltas/gammas for downstream deep ITM checks and gamma-based
         # sensitivity bumps. Values are frequently well below 0.1, so coarse rounding
-        # zeroes them out and breaks dGEX/dSpot and VEX calculations.
+        # zeroes them out and breaks dGEX/dSpot and VEX calculations. To avoid zeroing
+        # out tiny greeks entirely, we leave the gamma columns unrounded.
         "call_delta": 4,
-        "call_gamma": 6,
         "call_vega": 4,
         "call_theta": 4,
         "call_gex": 1,
@@ -211,7 +211,6 @@ def combine_option_files(
         "puts_iv": 1,
         "puts_oi_iv": 1,
         "puts_delta": 4,
-        "puts_gamma": 6,
         "puts_vega": 4,
         "puts_theta": 4,
         "net_gex": 1,
