@@ -193,8 +193,10 @@ def combine_option_files(
     merged["Spot"] = float(spot_price)
 
     rounding_map = {
-        "call_iv": 1,
-        "call_oi_iv": 1,
+        # Preserve IV and IV-weighted OI with enough precision that low-volatility
+        # names don't get rounded down to zero in the combined CSV.
+        "call_iv": 4,
+        "call_oi_iv": 4,
         # Preserve precise deltas/gammas for downstream deep ITM checks and gamma-based
         # sensitivity bumps. Values are frequently well below 0.1, so coarse rounding
         # zeroes them out and breaks dGEX/dSpot and VEX calculations.
@@ -205,11 +207,11 @@ def combine_option_files(
         "call_gex": 1,
         "call_vanna": 1,
         "put_vex": 1,
-        "IVxOI": 1,
+        "IVxOI": 4,
         "puts_gex": 1,
         "puts_vanna": 1,
-        "puts_iv": 1,
-        "puts_oi_iv": 1,
+        "puts_iv": 4,
+        "puts_oi_iv": 4,
         "puts_delta": 4,
         "puts_gamma": 6,
         "puts_vega": 4,
