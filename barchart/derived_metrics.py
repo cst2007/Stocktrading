@@ -441,22 +441,28 @@ def compute_derived_metrics(
     if rel_spot is not None and rel_spot > 0:
         bump_size = max(10.0, rel_spot * 0.0025)
 
-        call_delta_series = pd.to_numeric(unified_df["call_delta"], errors="coerce")
-        put_delta_series = pd.to_numeric(unified_df["puts_delta"], errors="coerce")
-        deep_itm_mask = call_delta_series.abs().ge(0.8) | put_delta_series.abs().ge(0.8)
-
-        deep_itm_strikes = (
-            pd.to_numeric(unified_df.loc[deep_itm_mask, "Strike"], errors="coerce")
+        strikes = (
+            pd.to_numeric(unified_df["Strike"], errors="coerce")
             .dropna()
             .unique()
         )
 
-        if bump_size > 0 and len(deep_itm_strikes):
+        sorted_strikes = sorted(strikes)
+
+        if bump_size > 0 and len(sorted_strikes):
             contract_multiplier = 100.0
             safe_call_gamma = call_gamma.fillna(0)
             safe_put_gamma = put_gamma.fillna(0)
             safe_call_oi = call_open_interest.fillna(0)
             safe_put_oi = put_open_interest.fillna(0)
+
+            closest_idx = min(
+                range(len(sorted_strikes)),
+                key=lambda idx: abs(sorted_strikes[idx] - rel_spot),
+            )
+            start_idx = max(0, closest_idx - 15)
+            end_idx = min(len(sorted_strikes), closest_idx + 16)
+            strikes_for_dgex = sorted_strikes[start_idx:end_idx]
 
             def _net_gex_for_spot(spot_level: float) -> float:
                 spot_term = float(spot_level) ** 2 * contract_multiplier
@@ -464,7 +470,7 @@ def compute_derived_metrics(
                 put_component = (safe_put_gamma * safe_put_oi * spot_term).sum()
                 return float(call_component - put_component)
 
-            for strike in deep_itm_strikes:
+            for strike in strikes_for_dgex:
                 strike_value = float(strike)
                 gex_up = _net_gex_for_spot(strike_value + bump_size)
                 gex_down = _net_gex_for_spot(strike_value - bump_size)
