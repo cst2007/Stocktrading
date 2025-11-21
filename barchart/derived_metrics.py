@@ -12,6 +12,8 @@ DERIVED_CSV_HEADER = [
     "Put VEX Rank",
     "Call VEX",
     "Call VEX Rank",
+    "dGEX/dSpot",
+    "dGEX/dSpot Rank",
     "Strike",
     "Call_Vanna",
     "Call_Vanna_Highlight",
@@ -276,6 +278,8 @@ def compute_derived_metrics(
         "call_gex",
         "puts_gex",
         "net_gex",
+        "call_gamma",
+        "puts_gamma",
         "call_open_interest",
         "puts_open_interest",
         "call_delta",
@@ -302,6 +306,8 @@ def compute_derived_metrics(
     put_open_interest = pd.to_numeric(
         unified_df["puts_open_interest"], errors="coerce"
     ).astype(float)
+    call_gamma = pd.to_numeric(unified_df["call_gamma"], errors="coerce").astype(float)
+    put_gamma = pd.to_numeric(unified_df["puts_gamma"], errors="coerce").astype(float)
 
     metrics = pd.DataFrame(
         {
@@ -427,6 +433,64 @@ def compute_derived_metrics(
         metrics["Rel_Dist"] = ((metrics["Strike"] - rel_spot).abs() / rel_spot).round(4)
     else:
         metrics["Rel_Dist"] = pd.NA
+
+    metrics["dGEX/dSpot"] = pd.NA
+    metrics["dGEX/dSpot Rank"] = ""
+
+    dgex_values: dict[float, float] = {}
+    if rel_spot is not None and rel_spot > 0:
+        bump_size = max(10.0, rel_spot * 0.0025)
+
+        call_delta_series = pd.to_numeric(unified_df["call_delta"], errors="coerce")
+        put_delta_series = pd.to_numeric(unified_df["puts_delta"], errors="coerce")
+        deep_itm_mask = call_delta_series.abs().ge(0.8) | put_delta_series.abs().ge(0.8)
+
+        deep_itm_strikes = (
+            pd.to_numeric(unified_df.loc[deep_itm_mask, "Strike"], errors="coerce")
+            .dropna()
+            .unique()
+        )
+
+        if bump_size > 0 and len(deep_itm_strikes):
+            contract_multiplier = 100.0
+            safe_call_gamma = call_gamma.fillna(0)
+            safe_put_gamma = put_gamma.fillna(0)
+            safe_call_oi = call_open_interest.fillna(0)
+            safe_put_oi = put_open_interest.fillna(0)
+
+            def _net_gex_for_spot(spot_level: float) -> float:
+                spot_term = float(spot_level) ** 2 * contract_multiplier
+                call_component = (safe_call_gamma * safe_call_oi * spot_term).sum()
+                put_component = (safe_put_gamma * safe_put_oi * spot_term).sum()
+                return float(call_component - put_component)
+
+            for strike in deep_itm_strikes:
+                strike_value = float(strike)
+                gex_up = _net_gex_for_spot(strike_value + bump_size)
+                gex_down = _net_gex_for_spot(strike_value - bump_size)
+                derivative = (gex_up - gex_down) / (2 * bump_size)
+                dgex_values[strike_value] = round(float(derivative), 2)
+                strike_mask = metrics["Strike"] == strike_value
+                metrics.loc[strike_mask, "dGEX/dSpot"] = dgex_values[strike_value]
+
+            if dgex_values:
+                dgex_series = pd.Series(dgex_values)
+                top_n = min(5, len(dgex_series))
+                top_indices = dgex_series.nlargest(top_n).index
+                bottom_indices = dgex_series.nsmallest(top_n).index
+                bottom_exclusive = [idx for idx in bottom_indices if idx not in set(top_indices)]
+
+                for rank, strike_value in enumerate(top_indices, start=1):
+                    strike_label = _format_strike(strike_value)
+                    metrics.loc[
+                        metrics["Strike"] == strike_value, "dGEX/dSpot Rank"
+                    ] = f"Top {rank}: {strike_label}"
+
+                for rank, strike_value in enumerate(bottom_exclusive, start=1):
+                    strike_label = _format_strike(strike_value)
+                    metrics.loc[
+                        metrics["Strike"] == strike_value, "dGEX/dSpot Rank"
+                    ] = f"Bottom {rank}: {strike_label}"
 
     metrics["Call_Vanna_Highlight"] = ""
     metrics["Put_Vanna_Highlight"] = ""

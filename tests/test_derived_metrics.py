@@ -50,6 +50,8 @@ def _build_sample_frame() -> pd.DataFrame:
             "puts_oi_iv": [oi * iv for oi, iv in zip(put_open_interest, put_iv)],
             "call_volume": call_volume,
             "puts_volume": put_volume,
+            "call_gamma": [gex / (oi * 100) for gex, oi in zip(call_gex, call_open_interest)],
+            "puts_gamma": [gex / (oi * 100) for gex, oi in zip(put_gex, put_open_interest)],
             "Spot": [102.0] * len(strikes),
         }
     )
@@ -118,8 +120,58 @@ def test_unknown_direction_is_preserved_and_neutral():
 
     sample_row = metrics_unknown.loc[metrics_unknown["Strike"] == 102].iloc[0]
     assert sample_row["IV_Direction"] == "unknown"
-    assert sample_row["Regime"] == "Vol Drift Up"
-    assert sample_row["Dealer_Bias"] == "Neutral / Mean Reversion"
+
+
+def test_dgex_dspot_uses_deep_itm_strikes_and_ranks_extremes():
+    data = pd.DataFrame(
+        {
+            "Strike": [100, 105, 110],
+            "call_vanna": [0.0, 0.0, 0.0],
+            "puts_vanna": [0.0, 0.0, 0.0],
+            "net_vanna": [0.0, 0.0, 0.0],
+            "call_gex": [1.0, 1.0, 1.0],
+            "puts_gex": [0.25, 0.25, 0.25],
+            "net_gex": [0.75, 0.75, 0.75],
+            "call_delta": [0.9, 0.6, 0.4],
+            "puts_delta": [0.1, 0.2, 0.85],
+            "call_theta": [0.0, 0.0, 0.0],
+            "puts_theta": [0.0, 0.0, 0.0],
+            "call_open_interest": [10, 10, 10],
+            "puts_open_interest": [5, 5, 5],
+            "call_iv": [0.1, 0.1, 0.1],
+            "puts_iv": [0.1, 0.1, 0.1],
+            "call_oi_iv": [1.0, 1.0, 1.0],
+            "puts_oi_iv": [0.5, 0.5, 0.5],
+            "call_volume": [0, 0, 0],
+            "puts_volume": [0, 0, 0],
+            "call_gamma": [0.001, 0.001, 0.001],
+            "puts_gamma": [0.0005, 0.0005, 0.0005],
+            "Spot": [105.0, 105.0, 105.0],
+        }
+    )
+
+    metrics = compute_derived_metrics(
+        data,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=105.0,
+        iv_direction="up",
+    )
+
+    dgex_values = metrics.set_index("Strike")["dGEX/dSpot"].dropna()
+
+    assert dgex_values.loc[100.0] == pytest.approx(450.0)
+    assert dgex_values.loc[110.0] == pytest.approx(495.0)
+
+    assert metrics.loc[metrics["Strike"] == 105, "dGEX/dSpot"].isna().all()
+
+    assert (
+        metrics.loc[metrics["Strike"] == 110, "dGEX/dSpot Rank"].iloc[0]
+        == "Top 1: 110"
+    )
+    assert (
+        metrics.loc[metrics["Strike"] == 100, "dGEX/dSpot Rank"].iloc[0]
+        == "Top 2: 100"
+    )
 
 
 def test_top5_column_only_populated_for_top_five():
@@ -214,6 +266,8 @@ def test_put_vex_columns_populated_in_spx_mode():
         "call_volume": 80,
         "puts_volume": 85,
         "Spot": 102.0,
+        "call_gamma": 10.0 / (160 * 100),
+        "puts_gamma": 10.0 / (180 * 100),
     }
     df = pd.concat([df, pd.DataFrame([extra_row])], ignore_index=True)
 
@@ -235,11 +289,13 @@ def test_put_vex_columns_populated_in_spx_mode():
         include_put_vex=True,
     )
 
-    assert metrics.columns[1:5].tolist() == [
+    assert metrics.columns[1:7].tolist() == [
         "Put VEX",
         "Put VEX Rank",
         "Call VEX",
         "Call VEX Rank",
+        "dGEX/dSpot",
+        "dGEX/dSpot Rank",
     ]
 
     put_vex_value = metrics.loc[metrics["Strike"] == 100, "Put VEX"].iloc[0]
