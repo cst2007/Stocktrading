@@ -195,9 +195,12 @@ def combine_option_files(
     rounding_map = {
         "call_iv": 1,
         "call_oi_iv": 1,
-        "call_delta": 1,
-        "call_gamma": 1,
-        "call_vega": 1,
+        # Preserve precise deltas/gammas for downstream deep ITM checks and gamma-based
+        # sensitivity bumps. Values are frequently well below 0.1, so coarse rounding
+        # zeroes them out and breaks dGEX/dSpot and VEX calculations.
+        "call_delta": 4,
+        "call_gamma": 6,
+        "call_vega": 4,
         "call_theta": 4,
         "call_gex": 1,
         "call_vanna": 1,
@@ -207,9 +210,9 @@ def combine_option_files(
         "puts_vanna": 1,
         "puts_iv": 1,
         "puts_oi_iv": 1,
-        "puts_delta": 1,
-        "puts_gamma": 1,
-        "puts_vega": 1,
+        "puts_delta": 4,
+        "puts_gamma": 6,
+        "puts_vega": 4,
         "puts_theta": 4,
         "net_gex": 1,
         "net_vanna": 1,
