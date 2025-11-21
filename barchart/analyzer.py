@@ -528,10 +528,10 @@ class BarchartOptionsAnalyzer:
         has_open_interest = "open_interest" in df.columns
         if not has_open_interest:
             logger.warning(
-                "CSV missing open interest column; defaulting open interest to zero for %s rows",
+                "CSV missing open interest column; assuming one contract per row for %s rows",
                 len(df),
             )
-            df["open_interest"] = 0.0
+            df["open_interest"] = 1.0
             df.attrs["open_interest_missing"] = True
         else:
             df.attrs["open_interest_missing"] = False
@@ -628,7 +628,7 @@ class BarchartOptionsAnalyzer:
             df["gex"] = df["gamma"] * df["open_interest"] * gex_factor
             if open_interest_missing:
                 logger.warning(
-                    "Open interest was missing; GEX values are computed assuming zero open interest."
+                    "Open interest was missing; assuming one contract per row for GEX calculations."
                 )
         else:
             if open_interest_missing:
