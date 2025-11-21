@@ -198,23 +198,17 @@ def combine_option_files(
         # Preserve precise deltas/gammas for downstream deep ITM checks and gamma-based
         # sensitivity bumps. Values are frequently well below 0.1, so coarse rounding
         # zeroes them out and breaks dGEX/dSpot and VEX calculations. To avoid zeroing
-        # out tiny greeks entirely, we leave the gamma columns unrounded.
+        # out tiny greeks entirely, we leave the gamma columns unrounded. We also avoid
+        # rounding exposure columns here so small but meaningful values are available to
+        # the derived metrics step.
         "call_delta": 4,
         "call_vega": 4,
         "call_theta": 4,
-        "call_gex": 1,
-        "call_vanna": 1,
-        "put_vex": 1,
-        "IVxOI": 1,
-        "puts_gex": 1,
-        "puts_vanna": 1,
         "puts_iv": 1,
         "puts_oi_iv": 1,
         "puts_delta": 4,
         "puts_vega": 4,
         "puts_theta": 4,
-        "net_gex": 1,
-        "net_vanna": 1,
         "Spot": 2,
     }
     for column, decimals in rounding_map.items():
