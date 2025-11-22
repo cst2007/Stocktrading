@@ -31,7 +31,7 @@ _PAIR_PATTERN = re.compile(
 
 @dataclass(slots=True)
 class OptionFilePair:
-    """Representation of a side-by-side/greeks export pair."""
+    """Representation of an options/greeks export pair."""
 
     key: str
     ticker: str
@@ -39,6 +39,7 @@ class OptionFilePair:
     side_by_side_path: Path
     greeks_path: Path
     upload_time: datetime
+    version: str = "v1"
 
     @property
     def label(self) -> str:
@@ -68,6 +69,7 @@ class OptionFilePair:
             "side_by_side": _format_path(self.side_by_side_path),
             "greeks": _format_path(self.greeks_path),
             "upload_time": self.upload_time.isoformat().replace("+00:00", "Z"),
+            "version": self.version,
         }
 
 
@@ -78,22 +80,29 @@ def discover_pairs(input_directory: Path) -> List[OptionFilePair]:
 
     grouped: Dict[str, Dict[str, object]] = {}
 
+    simple_pattern = re.compile(
+        r"^(?P<ticker>[a-zA-Z0-9$]+)-(?P<kind>options|volatility-greeks)-exp-(?P<expiry>\d{4}-\d{2}-\d{2})(?P<suffix>.*)\.csv$",
+        re.IGNORECASE,
+    )
+
     for csv_path in sorted(input_directory.glob("*.csv")):
         name_lower = csv_path.name.lower()
         if "combined" in name_lower:
             continue
-        if "side-by-side" not in name_lower and "volatility-greeks" not in name_lower:
-            continue
 
         match = _PAIR_PATTERN.match(csv_path.name)
+        version = "v1"
+        if not match:
+            match = simple_pattern.match(csv_path.name)
+            version = "v2" if match else "v1"
         if not match:
             logger.debug("Ignoring unmatched file name: %s", csv_path.name)
             continue
 
         ticker = match.group("ticker").lstrip("$").upper()
         expiry = match.group("expiry")
-        week = match.group("week")
-        suffix = match.group("suffix") or ""
+        suffix = match.groupdict().get("suffix") or ""
+        week = match.groupdict().get("week", "")
         normalized_suffix = re.sub(r"-side-by-side", "", suffix, flags=re.IGNORECASE)
         kind = match.group("kind").lower()
 
@@ -106,9 +115,11 @@ def discover_pairs(input_directory: Path) -> List[OptionFilePair]:
                 "week": week,
                 "suffix": normalized_suffix,
                 "paths": {},
+                "version": version,
             },
         )
         entry["paths"][kind] = csv_path
+        entry["version"] = version or entry.get("version", "v1")
 
     pairs: List[OptionFilePair] = []
     for key, info in grouped.items():
@@ -144,6 +155,7 @@ def discover_pairs(input_directory: Path) -> List[OptionFilePair]:
                 side_by_side_path=options_path,
                 greeks_path=greeks_path,
                 upload_time=upload_timestamp,
+                version=info.get("version", "v1"),
             )
         )
 
@@ -172,6 +184,35 @@ def process_pair(
 
     output_directory.mkdir(parents=True, exist_ok=True)
     processed_directory.mkdir(parents=True, exist_ok=True)
+
+    if pair.version == "v2":
+        from .v2_pipeline import ExposureRunConfig, run_exposure_pipeline
+
+        run_config = ExposureRunConfig(
+            ticker=pair.ticker,
+            expiry=pair.expiry,
+            spot=float(spot_price),
+            contract_multiplier=contract_multiplier,
+        )
+        outputs = run_exposure_pipeline(
+            pair.side_by_side_path,
+            pair.greeks_path,
+            run_config,
+            output_dir=output_directory,
+        )
+        moved_files = [
+            _move_to_processed(pair.side_by_side_path, processed_directory),
+            _move_to_processed(pair.greeks_path, processed_directory),
+        ]
+
+        return {
+            "pair": pair.to_dict(relative_to=pair.side_by_side_path.parent),
+            "core_csv": str(outputs.core_path),
+            "side_csv": str(outputs.side_path),
+            "reactivity_csv": str(outputs.reactivity_path),
+            "moved_files": [str(path) for path in moved_files],
+            "iv_direction": iv_direction,
+        }
 
     combined_df = combine_option_files(
         pair.side_by_side_path,
