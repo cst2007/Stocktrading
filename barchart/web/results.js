@@ -11,6 +11,9 @@ const spotElement = document.getElementById('result-spot');
 const ivDirectionElement = document.getElementById('result-iv-direction');
 const combinedElement = document.getElementById('result-combined');
 const derivedElement = document.getElementById('result-derived');
+const coreElement = document.getElementById('result-core');
+const sideElement = document.getElementById('result-side');
+const reactivityElement = document.getElementById('result-reactivity');
 const insightJsonElement = document.getElementById('result-insight-json');
 const movedListElement = document.getElementById('result-moved-list');
 const insightSection = document.getElementById('result-insight');
@@ -95,6 +98,9 @@ function renderOverview(data) {
 
   renderFileLink(combinedElement, result.combined_csv, result.combined_csv_url);
   renderFileLink(derivedElement, result.derived_csv, result.derived_csv_url);
+  renderFileLink(coreElement, result.core_csv, result.core_csv_url);
+  renderFileLink(sideElement, result.side_csv, result.side_csv_url);
+  renderFileLink(reactivityElement, result.reactivity_csv, result.reactivity_csv_url);
   renderFileLink(
     insightJsonElement,
     result.insights?.insight_json,
