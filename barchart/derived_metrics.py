@@ -543,9 +543,41 @@ def compute_derived_metrics(
                     f"{metrics.at[idx, 'Energy_Score']} | {metrics.at[idx, 'Dealer_Bias']}"
                 )
 
+    net_gex_above_spot: float | None = None
+    net_gex_below_spot: float | None = None
+    net_dex_above_spot: float | None = None
+    net_dex_below_spot: float | None = None
+
+    if spot_price is not None and pd.notna(spot_price) and not metrics.empty:
+        strike_values = pd.to_numeric(metrics.get("Strike"), errors="coerce")
+        gex_series = pd.to_numeric(metrics.get("Net_GEX"), errors="coerce")
+        dex_series = pd.to_numeric(metrics.get("Net_DEX"), errors="coerce")
+
+        if not strike_values.isna().all():
+            spot_level = float(spot_price)
+            above_mask = strike_values > spot_level
+            below_mask = strike_values < spot_level
+
+            if "Net_GEX" in metrics.columns:
+                net_gex_above_spot = float(gex_series.where(above_mask).sum())
+                net_gex_below_spot = float(gex_series.where(below_mask).sum())
+
+            if "Net_DEX" in metrics.columns:
+                net_dex_above_spot = float(dex_series.where(above_mask).sum())
+                net_dex_below_spot = float(dex_series.where(below_mask).sum())
+
     metrics.attrs["total_net_DEX"] = float(metrics["Net_DEX"].fillna(0).sum())
     metrics.attrs["median_ivxoi"] = median_ivxoi
     metrics.attrs["iv_direction"] = direction_value
+
+    if net_gex_above_spot is not None:
+        metrics.attrs["net_gex_above_spot"] = net_gex_above_spot
+    if net_gex_below_spot is not None:
+        metrics.attrs["net_gex_below_spot"] = net_gex_below_spot
+    if net_dex_above_spot is not None:
+        metrics.attrs["net_dex_above_spot"] = net_dex_above_spot
+    if net_dex_below_spot is not None:
+        metrics.attrs["net_dex_below_spot"] = net_dex_below_spot
 
     drop_set = {column for column in (drop_columns or []) if column in metrics.columns}
     if drop_set:
@@ -582,6 +614,34 @@ def compute_derived_metrics(
                 totals_row[column] = ""
         result = pd.concat([result, pd.DataFrame([totals_row])], ignore_index=True)
         has_totals = True
+
+        def _summary_row(label: str, column: str, value: float | None) -> dict[str, object]:
+            row = {col: "" for col in result.columns}
+            row["Strike"] = label
+            if value is not None and column in row:
+                row[column] = round(float(value), 2)
+            return row
+
+        summary_rows = []
+        if net_gex_above_spot is not None:
+            summary_rows.append(
+                _summary_row("Net_GEX_Above_Spot", "Net_GEX", net_gex_above_spot)
+            )
+        if net_gex_below_spot is not None:
+            summary_rows.append(
+                _summary_row("Net_GEX_Below_Spot", "Net_GEX", net_gex_below_spot)
+            )
+        if net_dex_above_spot is not None:
+            summary_rows.append(
+                _summary_row("Net_DEX_Above_Spot", "Net_DEX", net_dex_above_spot)
+            )
+        if net_dex_below_spot is not None:
+            summary_rows.append(
+                _summary_row("Net_DEX_Below_Spot", "Net_DEX", net_dex_below_spot)
+            )
+
+        if summary_rows:
+            result = pd.concat([result, pd.DataFrame(summary_rows)], ignore_index=True)
 
     result.attrs.update(metrics.attrs)
     result.attrs["has_totals_row"] = has_totals

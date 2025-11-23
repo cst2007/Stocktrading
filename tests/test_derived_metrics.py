@@ -306,7 +306,7 @@ def test_totals_row_is_appended_when_requested():
         include_totals_row=True,
     )
 
-    totals_row = metrics.iloc[-1]
+    totals_row = metrics.loc[metrics["Strike"] == "Total"].iloc[0]
     assert totals_row["Strike"] == "Total"
     assert totals_row["Call_Vanna_Highlight"] == ""
     assert totals_row["Put_Vanna_Highlight"] == ""
@@ -316,11 +316,48 @@ def test_totals_row_is_appended_when_requested():
     assert totals_row["Call_IVxOI_Rank"] == ""
     assert totals_row["Put_IVxOI_Rank"] == ""
 
-    data_only = metrics.iloc[:-1]
+    data_only_mask = pd.to_numeric(metrics["Strike"], errors="coerce").notna()
+    data_only = metrics.loc[data_only_mask]
     expected_net_gex_total = pd.to_numeric(data_only["Net_GEX"], errors="coerce").sum()
     assert totals_row["Net_GEX"] == pytest.approx(round(expected_net_gex_total, 2))
     expected_net_tex_total = pd.to_numeric(data_only["Net_TEX"], errors="coerce").sum()
     assert totals_row["Net_TEX"] == pytest.approx(round(expected_net_tex_total, 2))
+
+
+def test_above_below_spot_summaries_appended_after_totals():
+    df = _build_sample_frame()
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+        iv_direction="up",
+        include_totals_row=True,
+    )
+
+    total_idx = metrics.index[metrics["Strike"] == "Total"][0]
+    summary_order = metrics.iloc[total_idx:]["Strike"].tolist()
+    assert summary_order == [
+        "Total",
+        "Net_GEX_Above_Spot",
+        "Net_GEX_Below_Spot",
+        "Net_DEX_Above_Spot",
+        "Net_DEX_Below_Spot",
+    ]
+
+    gex_above = metrics.loc[metrics["Strike"] == "Net_GEX_Above_Spot", "Net_GEX"].iloc[0]
+    gex_below = metrics.loc[metrics["Strike"] == "Net_GEX_Below_Spot", "Net_GEX"].iloc[0]
+    dex_above = metrics.loc[metrics["Strike"] == "Net_DEX_Above_Spot", "Net_DEX"].iloc[0]
+    dex_below = metrics.loc[metrics["Strike"] == "Net_DEX_Below_Spot", "Net_DEX"].iloc[0]
+
+    assert gex_above == pytest.approx(50.0)
+    assert gex_below == pytest.approx(40.0)
+    assert dex_above == pytest.approx(42750.0)
+    assert dex_below == pytest.approx(23000.0)
+
+    assert metrics.attrs["net_gex_above_spot"] == pytest.approx(50.0)
+    assert metrics.attrs["net_gex_below_spot"] == pytest.approx(40.0)
+    assert metrics.attrs["net_dex_above_spot"] == pytest.approx(42750.0)
+    assert metrics.attrs["net_dex_below_spot"] == pytest.approx(23000.0)
 
 
 def test_columns_can_be_dropped_from_output():
