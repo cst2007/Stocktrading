@@ -337,11 +337,15 @@ def test_put_vex_columns_populated_in_spx_mode():
         include_put_vex=True,
     )
 
-    assert metrics.columns[1:7].tolist() == [
+    assert metrics.columns[1:11].tolist() == [
         "Put VEX",
         "Put VEX Rank",
         "Call VEX",
         "Call VEX Rank",
+        "Net_DEX",
+        "DEX_highlight",
+        "Net_GEX",
+        "Net_GEX_Highlight",
         "dGEX/dSpot",
         "dGEX/dSpot Rank",
     ]
