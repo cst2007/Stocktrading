@@ -74,6 +74,26 @@ TOTAL_SUM_COLUMNS = {
     "IVxOI",
 }
 
+__all__ = [
+    "DERIVED_CSV_HEADER",
+    "apply_highlight_annotations",
+    "classify_market_state",
+    "compute_derived_metrics",
+    "MarketState",
+]
+
+
+@dataclass
+class MarketState:
+    scenario: str | None
+    gex_location: str | None
+    gex_sign: int | None
+    dex_location: str | None
+    dex_sign: int | None
+    gex_zero: bool
+    dex_zero: bool
+    regime_flip: bool
+
 
 @dataclass
 class MarketState:
