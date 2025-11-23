@@ -18,6 +18,10 @@ DERIVED_CSV_HEADER = [
     "Net_GEX_Highlight",
     "dGEX/dSpot",
     "dGEX/dSpot Rank",
+    "Call_IVxOI",
+    "Put_IVxOI",
+    "IVxOI",
+    "IVxOI Rank",
     "Strike",
     "Call_Vanna",
     "Call_Vanna_Highlight",
@@ -36,11 +40,8 @@ DERIVED_CSV_HEADER = [
     "TEX_highlight",
     "Call_IV",
     "Put_IV",
-    "Call_IVxOI",
-    "Put_IVxOI",
     "Call_IVxOI_Highlight",
     "Put_IVxOI_Highlight",
-    "IVxOI",
     "Median_IVxOI",
     "Call_Vanna_Ratio",
     "Put_Vanna_Ratio",
@@ -396,6 +397,15 @@ def compute_derived_metrics(
         .sum(axis=1)
         .round(1)
     )
+    metrics["IVxOI Rank"] = ""
+
+    ivxoi_values = pd.to_numeric(metrics["IVxOI"], errors="coerce")
+    ivxoi_rank_series = ivxoi_values[ivxoi_values > 0].dropna()
+    if not ivxoi_rank_series.empty:
+        ranked_indices = ivxoi_rank_series.nlargest(min(7, len(ivxoi_rank_series))).index
+        for rank, idx in enumerate(ranked_indices, start=1):
+            strike_value = _format_strike(metrics.at[idx, "Strike"])
+            metrics.at[idx, "IVxOI Rank"] = f"Rank {rank}: {strike_value}"
 
     call_gex_denom = metrics["Call_GEX"].replace({0: pd.NA})
     put_gex_denom = metrics["Put_GEX"].replace({0: pd.NA})
