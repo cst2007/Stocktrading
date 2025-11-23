@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Collection, Sequence
 
@@ -73,6 +74,26 @@ TOTAL_SUM_COLUMNS = {
     "IVxOI",
 }
 
+__all__ = [
+    "DERIVED_CSV_HEADER",
+    "apply_highlight_annotations",
+    "classify_market_state",
+    "compute_derived_metrics",
+    "MarketState",
+]
+
+
+@dataclass
+class MarketState:
+    scenario: str | None
+    gex_location: str | None
+    gex_sign: int | None
+    dex_location: str | None
+    dex_sign: int | None
+    gex_zero: bool
+    dex_zero: bool
+    regime_flip: bool
+
 
 def _format_timestamp(timestamp: datetime) -> str:
     utc_time = timestamp.astimezone(timezone.utc)
@@ -115,6 +136,110 @@ def _classify_regime(row: pd.Series, iv_direction: str) -> str:
     if _is_less_than(call_ratio, 1) and _is_greater_than(put_ratio, 2):
         return "Vol Drift Up"
     return "Transition Zone"
+
+
+def classify_market_state(
+    net_gex_above_spot: float | None,
+    net_gex_below_spot: float | None,
+    net_dex_above_spot: float | None,
+    net_dex_below_spot: float | None,
+    *,
+    epsilon: float | None = None,
+) -> MarketState:
+    """Classify the market state based on GEX/DEX distributions."""
+
+    if None in {
+        net_gex_above_spot,
+        net_gex_below_spot,
+        net_dex_above_spot,
+        net_dex_below_spot,
+    }:
+        return MarketState(None, None, None, None, None, False, False, False)
+
+    def _sign(value: float) -> int:
+        return 1 if value >= 0 else -1
+
+    gas = float(net_gex_above_spot)
+    gbs = float(net_gex_below_spot)
+    das = float(net_dex_above_spot)
+    dbs = float(net_dex_below_spot)
+
+    sgn_ga = _sign(gas)
+    sgn_gb = _sign(gbs)
+    sgn_da = _sign(das)
+    sgn_db = _sign(dbs)
+
+    mag_ga = abs(gas)
+    mag_gb = abs(gbs)
+    mag_da = abs(das)
+    mag_db = abs(dbs)
+
+    gex_location = "ABOVE" if mag_ga > mag_gb else "BELOW"
+    dex_location = "ABOVE" if mag_da > mag_db else "BELOW"
+
+    gex_sign = sgn_ga if gex_location == "ABOVE" else sgn_gb
+    dex_sign = sgn_da if dex_location == "ABOVE" else sgn_db
+
+    # Special cases override standard rules.
+    scenario: str | None = None
+    if sgn_ga == -1 and sgn_db == -1:
+        scenario = "Volatility Box (Avoid)"
+    elif sgn_ga == 1 and sgn_db == 1:
+        scenario = "Dream Bullish (Perfect Long Adam)"
+    else:
+        threshold = 0.05 * max(mag_ga, mag_da)
+        if gas < 0 and das < 0 and abs(gas - das) < threshold:
+            scenario = "Negative–Negative Same Strike (Perfect Short Adam)"
+
+    if scenario is None:
+        key = (gex_location, gex_sign, dex_location, dex_sign)
+        match key:
+            case ("ABOVE", 1, "BELOW", 1):
+                scenario = "Best Bullish (Long Adam)"
+            case ("ABOVE", 1, "BELOW", -1):
+                scenario = "Dip-Acceleration → Magnet Up (Conditional Long Adam)"
+            case ("ABOVE", 1, "ABOVE", 1):
+                scenario = "Upside Stall (No Adam)"
+            case ("ABOVE", 1, "ABOVE", -1):
+                scenario = "Low-Volatility Stall (Avoid Adam)"
+            case ("BELOW", 1, "BELOW", 1):
+                scenario = "Support + Weak Down Magnet (Weak Long Scalp)"
+            case ("BELOW", 1, "BELOW", -1):
+                scenario = "Very Bearish (Strong Short Adam)"
+            case ("BELOW", 1, "ABOVE", 1):
+                scenario = "Fade Rises (No Adam)"
+            case ("BELOW", 1, "ABOVE", -1):
+                scenario = "Pop → Slam Down (Short Adam)"
+            case ("ABOVE", -1, "BELOW", 1):
+                scenario = "Bullish Explosion (Fast Long Adam)"
+            case ("ABOVE", -1, "BELOW", -1):
+                scenario = "Volatility Whipsaw (Avoid Adam)"
+            case ("ABOVE", -1, "ABOVE", 1):
+                scenario = "Uptrend + Brake (No Adam)"
+            case ("ABOVE", -1, "ABOVE", -1):
+                scenario = "Short-Squeeze Blowout (Not Adam)"
+            case _:
+                scenario = None
+
+    total_gex = mag_ga + mag_gb
+    total_dex = mag_da + mag_db
+    effective_total = max(total_gex, total_dex, 1.0)
+    epsilon_value = epsilon if epsilon is not None else 0.05 * effective_total
+
+    gex_zero = abs(gas - gbs) < epsilon_value
+    dex_zero = abs(das - dbs) < epsilon_value
+    regime_flip = gex_zero and dex_zero
+
+    return MarketState(
+        scenario,
+        gex_location,
+        gex_sign,
+        dex_location,
+        dex_sign,
+        gex_zero,
+        dex_zero,
+        regime_flip,
+    )
 
 
 def _score_energy(ivxoi: float | pd.Series, median_ivxoi: float | None) -> str:
@@ -579,6 +704,23 @@ def compute_derived_metrics(
     if net_dex_below_spot is not None:
         metrics.attrs["net_dex_below_spot"] = net_dex_below_spot
 
+    market_state = classify_market_state(
+        net_gex_above_spot,
+        net_gex_below_spot,
+        net_dex_above_spot,
+        net_dex_below_spot,
+    )
+    metrics.attrs["market_state"] = market_state.scenario
+    metrics.attrs["market_state_components"] = {
+        "GEX_location": market_state.gex_location,
+        "GEX_sign": market_state.gex_sign,
+        "DEX_location": market_state.dex_location,
+        "DEX_sign": market_state.dex_sign,
+        "GEX_zero": market_state.gex_zero,
+        "DEX_zero": market_state.dex_zero,
+        "Regime_Flip": market_state.regime_flip,
+    }
+
     drop_set = {column for column in (drop_columns or []) if column in metrics.columns}
     if drop_set:
         metrics = metrics.drop(columns=sorted(drop_set))
@@ -647,6 +789,3 @@ def compute_derived_metrics(
     result.attrs["has_totals_row"] = has_totals
 
     return result
-
-
-__all__ = ["DERIVED_CSV_HEADER", "apply_highlight_annotations", "compute_derived_metrics"]
