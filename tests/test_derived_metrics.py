@@ -7,7 +7,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from barchart.derived_metrics import _format_strike, compute_derived_metrics
+from barchart.derived_metrics import (
+    _format_strike,
+    classify_market_state,
+    compute_derived_metrics,
+)
 
 
 def _build_sample_frame() -> pd.DataFrame:
@@ -358,6 +362,39 @@ def test_above_below_spot_summaries_appended_after_totals():
     assert metrics.attrs["net_gex_below_spot"] == pytest.approx(40.0)
     assert metrics.attrs["net_dex_above_spot"] == pytest.approx(42750.0)
     assert metrics.attrs["net_dex_below_spot"] == pytest.approx(23000.0)
+
+
+def test_market_state_classification_and_components():
+    df = _build_sample_frame()
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+        iv_direction="up",
+        include_totals_row=True,
+    )
+
+    assert metrics.attrs["market_state"] == "Dream Bullish (Perfect Long Adam)"
+    components = metrics.attrs["market_state_components"]
+    assert components["GEX_location"] == "ABOVE"
+    assert components["DEX_location"] == "ABOVE"
+    assert components["GEX_sign"] == 1
+    assert components["DEX_sign"] == 1
+    assert components["Regime_Flip"] is False
+
+
+def test_classify_market_state_special_cases_and_zero_lines():
+    negative_alignment = classify_market_state(-100.0, 20.0, -96.0, 5.0)
+    assert (
+        negative_alignment.scenario
+        == "Negative–Negative Same Strike (Perfect Short Adam)"
+    )
+
+    zero_line_trigger = classify_market_state(1.0, 1.02, -0.5, -0.48)
+    assert zero_line_trigger.gex_zero is True
+    assert zero_line_trigger.dex_zero is True
+    assert zero_line_trigger.regime_flip is True
+    assert zero_line_trigger.scenario == "Pop → Slam Down (Short Adam)"
 
 
 def test_columns_can_be_dropped_from_output():
