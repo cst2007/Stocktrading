@@ -93,3 +93,162 @@ reflect the new metrics and decision logic.
 - Documentation and tests demonstrate the behavior for key scenarios (gamma pin, pre- and
   post-earnings shifts, vol drift conditions, and neutral transitions).
 - No regressions in existing analytics workflows.
+
+## Additional Market State Classification Logic
+
+✅ 1. VARIABLE DEFINITIONS (Use in your Codex/Program)
+
+Let:
+
+GAS = Net_GEX_Above_Spot
+GBS = Net_GEX_Below_Spot
+DAS = Net_DEX_Above_Spot
+DBS = Net_DEX_Below_Spot
+
+
+Define signs:
+
+sgn_GA = sign(GAS)      // +1 or –1
+sgn_GB = sign(GBS)
+sgn_DA = sign(DAS)
+sgn_DB = sign(DBS)
+
+
+Define magnitudes:
+
+mag_GA = abs(GAS)
+mag_GB = abs(GBS)
+mag_DA = abs(DAS)
+mag_DB = abs(DBS)
+
+✅ 2. EQUATIONS TO IDENTIFY DOMINANT ZONES
+2.1 Dominant GEX Location (Above or Below Spot)
+if mag_GA > mag_GB:
+    GEX_location = "ABOVE"
+else:
+    GEX_location = "BELOW"
+
+2.2 Dominant DEX Location
+if mag_DA > mag_DB:
+    DEX_location = "ABOVE"
+else:
+    DEX_location = "BELOW"
+
+2.3 Effective GEX Sign (Short or Long Gamma)
+if GEX_location == "ABOVE":
+    GEX_sign = sgn_GA
+else:
+    GEX_sign = sgn_GB
+
+2.4 Effective DEX Sign (Direction Bias)
+if DEX_location == "ABOVE":
+    DEX_sign = sgn_DA
+else:
+    DEX_sign = sgn_DB
+
+✅ 3. THE MASTER EQUATION FOR CLASSIFICATION
+Your market state is uniquely identified by this ordered pair:
+State = (GEX_location, GEX_sign, DEX_location, DEX_sign)
+
+
+This generates all 12 core scenarios.
+
+✅ 4. FORMAL RULES (12 CORE STATES)
+
+These rules map directly to your matrix rows.
+
+🔵 CASE GROUP 1 — GEX ABOVE SPOT
+Rule 1:
+if GEX_location == "ABOVE" and GEX_sign == +1 and DEX_location == "BELOW" and DEX_sign == +1:
+    Scenario = "Best Bullish (Long Adam)"
+
+Rule 2:
+if GEX_location == "ABOVE" and GEX_sign == +1 and DEX_location == "BELOW" and DEX_sign == -1:
+    Scenario = "Dip-Acceleration → Magnet Up (Conditional Long Adam)"
+
+Rule 3:
+if GEX_location == "ABOVE" and GEX_sign == +1 and DEX_location == "ABOVE" and DEX_sign == +1:
+    Scenario = "Upside Stall (No Adam)"
+
+Rule 4:
+if GEX_location == "ABOVE" and GEX_sign == +1 and DEX_location == "ABOVE" and DEX_sign == -1:
+    Scenario = "Low-Volatility Stall (Avoid Adam)"
+
+🔴 CASE GROUP 2 — GEX BELOW SPOT
+Rule 5:
+if GEX_location == "BELOW" and GEX_sign == +1 and DEX_location == "BELOW" and DEX_sign == +1:
+    Scenario = "Support + Weak Down Magnet (Weak Long Scalp)"
+
+Rule 6:
+if GEX_location == "BELOW" and GEX_sign == +1 and DEX_location == "BELOW" and DEX_sign == -1:
+    Scenario = "Very Bearish (Strong Short Adam)"
+
+Rule 7:
+if GEX_location == "BELOW" and GEX_sign == +1 and DEX_location == "ABOVE" and DEX_sign == +1:
+    Scenario = "Fade Rises (No Adam)"
+
+Rule 8:
+if GEX_location == "BELOW" and GEX_sign == +1 and DEX_location == "ABOVE" and DEX_sign == -1:
+    Scenario = "Pop → Slam Down (Short Adam)"
+
+🟣 CASE GROUP 3 — SHORT GAMMA ABOVE
+
+(negative GEX above spot)
+
+Rule 9:
+if GEX_location == "ABOVE" and GEX_sign == -1 and DEX_location == "BELOW" and DEX_sign == +1:
+    Scenario = "Bullish Explosion (Fast Long Adam)"
+
+Rule 10:
+if GEX_location == "ABOVE" and GEX_sign == -1 and DEX_location == "BELOW" and DEX_sign == -1:
+    Scenario = "Volatility Whipsaw (Avoid Adam)"
+
+Rule 11:
+if GEX_location == "ABOVE" and GEX_sign == -1 and DEX_location == "ABOVE" and DEX_sign == +1:
+    Scenario = "Uptrend + Brake (No Adam)"
+
+Rule 12:
+if GEX_location == "ABOVE" and GEX_sign == -1 and DEX_location == "ABOVE" and DEX_sign == -1:
+    Scenario = "Short-Squeeze Blowout (Not Adam)"
+
+⭐ 5. SPECIAL CASES (VERY IMPORTANT EQUATIONS)
+
+These override the above rules when true.
+
+⭐ Special Case A — Volatility Box
+if sgn_GA == -1 and sgn_DB == -1:   # –GEX above AND –DEX below
+    Scenario = "Volatility Box (Avoid)"
+
+⭐ Special Case B — Dream Bullish
+if sgn_GA == +1 and sgn_DB == +1:   # +GEX above AND +DEX below
+    Scenario = "Dream Bullish (Perfect Long Adam)"
+
+⭐ Special Case C — Super-Magnet Down
+if (GAS < 0 and DAS < 0 and abs(GAS - DAS) < threshold):
+    Scenario = "Negative–Negative Same Strike (Perfect Short Adam)"
+
+
+Where threshold is a programmatic proximity rule:
+
+threshold = 5% * max(abs(GAS), abs(DAS))
+
+🚀 6. EQUATION FOR THE ZERO-LINE (GEX/DEX EQUALITY)
+GEX Zero-Line Condition
+if abs(GAS - GBS) < epsilon:
+    GEX_zero = True
+
+DEX Zero-Line Condition
+if abs(DAS - DBS) < epsilon:
+    DEX_zero = True
+
+Regime Flip Trigger
+if GEX_zero and DEX_zero:
+    Trigger = "Regime Flip Zone (Vol Expansion → Adam Setup Soon)"
+
+
+Where
+
+epsilon = tolerance value (e.g., 2–5% of total gamma)
+
+🔥 7. FINAL MARKET STATE EQUATION (FOR YOUR CODEX)
+Market_State = f(GEX_location, GEX_sign, DEX_location, DEX_sign, special_cases, zero_line)
