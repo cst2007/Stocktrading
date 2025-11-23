@@ -265,11 +265,13 @@ def test_ivxoi_columns_positioned_and_ranked():
 
     columns = list(metrics.columns)
     dgex_rank_idx = columns.index("dGEX/dSpot Rank")
-    assert columns[dgex_rank_idx + 1 : dgex_rank_idx + 5] == [
+    assert columns[dgex_rank_idx + 1 : dgex_rank_idx + 7] == [
         "Call_IVxOI",
         "Put_IVxOI",
         "IVxOI",
         "IVxOI Rank",
+        "Call_IVxOI_Rank",
+        "Put_IVxOI_Rank",
     ]
 
     ivxoi_ranks = metrics.set_index("Strike")["IVxOI Rank"]
@@ -311,8 +313,8 @@ def test_totals_row_is_appended_when_requested():
     assert totals_row["Net_GEX_Highlight"] == ""
     assert totals_row["DEX_highlight"] == ""
     assert totals_row["TEX_highlight"] == ""
-    assert totals_row["Call_IVxOI_Highlight"] == ""
-    assert totals_row["Put_IVxOI_Highlight"] == ""
+    assert totals_row["Call_IVxOI_Rank"] == ""
+    assert totals_row["Put_IVxOI_Rank"] == ""
 
     data_only = metrics.iloc[:-1]
     expected_net_gex_total = pd.to_numeric(data_only["Net_GEX"], errors="coerce").sum()
@@ -560,8 +562,8 @@ def test_ivxoi_highlights_mark_top_values():
         iv_direction="up",
     )
 
-    call_highlighted = metrics.loc[metrics["Call_IVxOI_Highlight"] != ""]
-    put_highlighted = metrics.loc[metrics["Put_IVxOI_Highlight"] != ""]
+    call_highlighted = metrics.loc[metrics["Call_IVxOI_Rank"] != ""]
+    put_highlighted = metrics.loc[metrics["Put_IVxOI_Rank"] != ""]
 
     top_call_indices = metrics["Call_IVxOI"].nlargest(4).index
     top_put_indices = metrics["Put_IVxOI"].nlargest(4).index
@@ -571,11 +573,11 @@ def test_ivxoi_highlights_mark_top_values():
 
     for rank, idx in enumerate(top_call_indices, start=1):
         strike_value = _format_strike(metrics.at[idx, "Strike"])
-        assert metrics.at[idx, "Call_IVxOI_Highlight"] == f"Top {rank} : {strike_value}"
+        assert metrics.at[idx, "Call_IVxOI_Rank"] == f"Top {rank} : {strike_value}"
 
     for rank, idx in enumerate(top_put_indices, start=1):
         strike_value = _format_strike(metrics.at[idx, "Strike"])
-        assert metrics.at[idx, "Put_IVxOI_Highlight"] == f"Top {rank} : {strike_value}"
+        assert metrics.at[idx, "Put_IVxOI_Rank"] == f"Top {rank} : {strike_value}"
 
 
 def test_invalid_direction_raises_error():

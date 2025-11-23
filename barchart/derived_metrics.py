@@ -22,6 +22,8 @@ DERIVED_CSV_HEADER = [
     "Put_IVxOI",
     "IVxOI",
     "IVxOI Rank",
+    "Call_IVxOI_Rank",
+    "Put_IVxOI_Rank",
     "Strike",
     "Call_Vanna",
     "Call_Vanna_Highlight",
@@ -40,8 +42,6 @@ DERIVED_CSV_HEADER = [
     "TEX_highlight",
     "Call_IV",
     "Put_IV",
-    "Call_IVxOI_Highlight",
-    "Put_IVxOI_Highlight",
     "Median_IVxOI",
     "Call_Vanna_Ratio",
     "Put_Vanna_Ratio",
@@ -154,8 +154,8 @@ def apply_highlight_annotations(metrics: pd.DataFrame) -> None:
         "Call_TEX_Highlight",
         "Put_TEX_Highlight",
         "TEX_highlight",
-        "Call_IVxOI_Highlight",
-        "Put_IVxOI_Highlight",
+        "Call_IVxOI_Rank",
+        "Put_IVxOI_Rank",
     ]
 
     for column in highlight_columns:
@@ -251,8 +251,8 @@ def apply_highlight_annotations(metrics: pd.DataFrame) -> None:
         top_n=5,
         use_nsmallest=True,
     )
-    _set_ranked_highlights("Call_IVxOI", "Call_IVxOI_Highlight", top_n=4)
-    _set_ranked_highlights("Put_IVxOI", "Put_IVxOI_Highlight", top_n=4)
+    _set_ranked_highlights("Call_IVxOI", "Call_IVxOI_Rank", top_n=4)
+    _set_ranked_highlights("Put_IVxOI", "Put_IVxOI_Rank", top_n=4)
 
 
 def compute_derived_metrics(
@@ -515,8 +515,8 @@ def compute_derived_metrics(
     metrics["Call_TEX_Highlight"] = ""
     metrics["Put_TEX_Highlight"] = ""
     metrics["TEX_highlight"] = ""
-    metrics["Call_IVxOI_Highlight"] = ""
-    metrics["Put_IVxOI_Highlight"] = ""
+    metrics["Call_IVxOI_Rank"] = ""
+    metrics["Put_IVxOI_Rank"] = ""
 
     metrics["Top5_Regime_Energy_Bias"] = ""
 

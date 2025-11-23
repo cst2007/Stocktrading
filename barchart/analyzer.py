@@ -30,8 +30,8 @@ HIGHLIGHT_METRIC_MAP = {
     "Call_TEX": "Call_TEX_Highlight",
     "Put_TEX": "Put_TEX_Highlight",
     "Net_TEX": "TEX_highlight",
-    "Call_IVxOI": "Call_IVxOI_Highlight",
-    "Put_IVxOI": "Put_IVxOI_Highlight",
+    "Call_IVxOI": "Call_IVxOI_Rank",
+    "Put_IVxOI": "Put_IVxOI_Rank",
 }
 
 

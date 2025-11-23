@@ -54,8 +54,8 @@ def _build_processing_result(tmp_path: Path, summary_df: pd.DataFrame | None = N
                 "Call_TEX_Highlight": ["Top 1 : 100.12", ""],
                 "Put_TEX_Highlight": ["", "Top 1 : 90.99"],
                 "TEX_highlight": ["", "Top 1 : 90.99"],
-                "Call_IVxOI_Highlight": ["Top 1 : 100.12", ""],
-                "Put_IVxOI_Highlight": ["", "Top 1 : 90.99"],
+                "Call_IVxOI_Rank": ["Top 1 : 100.12", ""],
+                "Put_IVxOI_Rank": ["", "Top 1 : 90.99"],
             },
             index=index,
         )
@@ -166,8 +166,8 @@ def test_highlight_log_appends_full_rows_for_successive_runs(tmp_path):
         "Call_TEX_Highlight",
         "Put_TEX_Highlight",
         "TEX_highlight",
-        "Call_IVxOI_Highlight",
-        "Put_IVxOI_Highlight",
+        "Call_IVxOI_Rank",
+        "Put_IVxOI_Rank",
     ]
     for column in highlight_columns:
         summary_df[column] = ""
@@ -202,7 +202,7 @@ def test_highlight_log_appends_full_rows_for_successive_runs(tmp_path):
     summary_df.loc[90.9876, "Put_Vanna_Highlight"] = "Bottom 1 : 90.99"
     summary_df.loc[90.9876, "Put_TEX_Highlight"] = "Top 1 : 90.99"
     summary_df.loc[90.9876, "TEX_highlight"] = "Top 1 : 90.99"
-    summary_df.loc[90.9876, "Put_IVxOI_Highlight"] = "Top 1 : 90.99"
+    summary_df.loc[90.9876, "Put_IVxOI_Rank"] = "Top 1 : 90.99"
 
     follow_up_result = _build_processing_result(tmp_path, summary_df=summary_df)
     analyzer._write_outputs(follow_up_result)
