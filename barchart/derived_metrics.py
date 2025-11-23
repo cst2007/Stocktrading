@@ -95,6 +95,18 @@ class MarketState:
     regime_flip: bool
 
 
+@dataclass
+class MarketState:
+    scenario: str | None
+    gex_location: str | None
+    gex_sign: int | None
+    dex_location: str | None
+    dex_sign: int | None
+    gex_zero: bool
+    dex_zero: bool
+    regime_flip: bool
+
+
 def _format_timestamp(timestamp: datetime) -> str:
     utc_time = timestamp.astimezone(timezone.utc)
     return utc_time.replace(tzinfo=None).isoformat(timespec="seconds") + "Z"
@@ -789,3 +801,12 @@ def compute_derived_metrics(
     result.attrs["has_totals_row"] = has_totals
 
     return result
+
+
+__all__ = [
+    "DERIVED_CSV_HEADER",
+    "apply_highlight_annotations",
+    "classify_market_state",
+    "compute_derived_metrics",
+    "MarketState",
+]
