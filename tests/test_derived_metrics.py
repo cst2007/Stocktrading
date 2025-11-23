@@ -222,6 +222,63 @@ def test_dgex_dspot_evaluates_strikes_within_fifteen_steps_of_spot():
     assert pd.isna(dgex_values.loc[116.0])
 
 
+def test_ivxoi_columns_positioned_and_ranked():
+    strikes = list(range(100, 108))
+    call_open_interest = [80 + 10 * idx for idx in range(len(strikes))]
+    put_open_interest = [100 + 10 * idx for idx in range(len(strikes))]
+    call_iv = [0.1] * len(strikes)
+    put_iv = [0.2] * len(strikes)
+
+    data = pd.DataFrame(
+        {
+            "Strike": strikes,
+            "call_vanna": [5.0] * len(strikes),
+            "puts_vanna": [3.0] * len(strikes),
+            "net_vanna": [8.0] * len(strikes),
+            "call_gex": [1.0] * len(strikes),
+            "puts_gex": [0.5] * len(strikes),
+            "net_gex": [1.5] * len(strikes),
+            "call_delta": [0.5] * len(strikes),
+            "puts_delta": [0.5] * len(strikes),
+            "call_theta": [-0.01] * len(strikes),
+            "puts_theta": [-0.02] * len(strikes),
+            "call_open_interest": call_open_interest,
+            "puts_open_interest": put_open_interest,
+            "call_iv": call_iv,
+            "puts_iv": put_iv,
+            "call_oi_iv": [oi * iv for oi, iv in zip(call_open_interest, call_iv)],
+            "puts_oi_iv": [oi * iv for oi, iv in zip(put_open_interest, put_iv)],
+            "call_volume": [0] * len(strikes),
+            "puts_volume": [0] * len(strikes),
+            "call_gamma": [gex / (oi * 100) for gex, oi in zip([1.0] * len(strikes), call_open_interest)],
+            "puts_gamma": [gex / (oi * 100) for gex, oi in zip([0.5] * len(strikes), put_open_interest)],
+            "Spot": [104.0] * len(strikes),
+        }
+    )
+
+    metrics = compute_derived_metrics(
+        data,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=104.0,
+        iv_direction="up",
+    )
+
+    columns = list(metrics.columns)
+    dgex_rank_idx = columns.index("dGEX/dSpot Rank")
+    assert columns[dgex_rank_idx + 1 : dgex_rank_idx + 5] == [
+        "Call_IVxOI",
+        "Put_IVxOI",
+        "IVxOI",
+        "IVxOI Rank",
+    ]
+
+    ivxoi_ranks = metrics.set_index("Strike")["IVxOI Rank"]
+    assert ivxoi_ranks.loc[100] == ""
+    assert ivxoi_ranks.loc[107] == "Rank 1: 107"
+    assert ivxoi_ranks.loc[106] == "Rank 2: 106"
+    assert ivxoi_ranks.loc[101] == "Rank 7: 101"
+
+
 def test_top5_column_only_populated_for_top_five():
     df = _build_sample_frame()
     metrics = compute_derived_metrics(
