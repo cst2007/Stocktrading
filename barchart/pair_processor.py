@@ -279,27 +279,6 @@ def process_pair(
     formatted_derived_df = _format_derived_numeric_values(derived_df)
     formatted_derived_df.to_csv(derived_path, index=False)
 
-    market_structure_path = _write_market_structure_file(
-        derived_path,
-        market_state=market_state,
-        market_state_description=market_state_description,
-        market_state_components=market_state_components,
-        market_state_playbook=market_state_playbook,
-        derived_df=derived_df,
-        ticker=pair.ticker,
-        spot_price=spot_price,
-        vex_direction=vex_direction,
-        tex_direction=tex_direction,
-        gamma_box_high=gamma_box_high,
-        gamma_box_low=gamma_box_low,
-        breakout_up=breakout_up,
-        breakout_down=breakout_down,
-        vex_dir_box_high=vex_dir_box_high,
-        vex_dir_box_low=vex_dir_box_low,
-        tex_dir_box_high=tex_dir_box_high,
-        tex_dir_box_low=tex_dir_box_low,
-    )
-
     insights_dir = derived_dir / "insights"
     insights_info: Dict[str, object] | None = None
     try:
@@ -327,6 +306,30 @@ def process_pair(
 
     results = analyzer.process_path(combined_path, analyzer_output_dir)
     summaries = _summaries_from_results(results)
+
+    first_top5_detail = results[0].top5_detail if results else None
+
+    market_structure_path = _write_market_structure_file(
+        derived_path,
+        market_state=market_state,
+        market_state_description=market_state_description,
+        market_state_components=market_state_components,
+        market_state_playbook=market_state_playbook,
+        derived_df=derived_df,
+        ticker=pair.ticker,
+        spot_price=spot_price,
+        vex_direction=vex_direction,
+        tex_direction=tex_direction,
+        gamma_box_high=gamma_box_high,
+        gamma_box_low=gamma_box_low,
+        breakout_up=breakout_up,
+        breakout_down=breakout_down,
+        vex_dir_box_high=vex_dir_box_high,
+        vex_dir_box_low=vex_dir_box_low,
+        tex_dir_box_high=tex_dir_box_high,
+        tex_dir_box_low=tex_dir_box_low,
+        top5_detail=first_top5_detail,
+    )
 
     moved_files = [
         _move_to_processed(pair.side_by_side_path, processed_directory),
@@ -428,6 +431,7 @@ def _write_market_structure_file(
     vex_dir_box_low: int | None = None,
     tex_dir_box_high: int | None = None,
     tex_dir_box_low: int | None = None,
+    top5_detail: Mapping[str, object] | None = None,
 ) -> Path | None:
     """Persist the market structure summary next to the derived CSV.
 
@@ -511,6 +515,20 @@ def _write_market_structure_file(
             negative=negative,
             neutral=neutral,
         ) + ")"
+
+    def _format_level(label: str, value: object) -> str:
+        strike_value = "None" if value is None else _format_strike(value)
+        return f"- {label}: {strike_value}"
+
+    def _format_distance(value: object) -> str:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return "n/a"
+
+        if number.is_integer():
+            return str(int(number))
+        return f"{number:.2f}".rstrip("0").rstrip(".")
 
     def _calculate_magnets(
         df: pd.DataFrame | None,
@@ -665,6 +683,42 @@ def _write_market_structure_file(
         lines.append("")
         lines.append("Execution:")
         lines.extend(execution_lines)
+
+    if top5_detail:
+        lines.append("")
+        lines.append("Top 5 Detail:")
+
+        lines.append("Levels:")
+        lines.append(_format_level("Primary_Fade_Level", top5_detail.get("Primary_Fade_Level")))
+        lines.append(
+            _format_level(
+                "Primary_Long_Drift_Level", top5_detail.get("Primary_Long_Drift_Level")
+            )
+        )
+        lines.append(
+            _format_level(
+                "Primary_Short_Drift_Level", top5_detail.get("Primary_Short_Drift_Level")
+            )
+        )
+        lines.append(_format_level("Flip_Zone", top5_detail.get("Flip_Zone")))
+        lines.append(_format_level("Nearest_Magnet", top5_detail.get("Nearest_Magnet")))
+        lines.append(_format_level("Secondary_Magnet", top5_detail.get("Secondary_Magnet")))
+
+        detail_rows = top5_detail.get("Top5_Detail") if isinstance(top5_detail, Mapping) else None
+        if detail_rows:
+            lines.append("")
+            lines.append("Top 5 Strikes:")
+            for row in detail_rows:
+                classification = row.get("Classification") or "Unclassified"
+                regime = row.get("Regime") or "Unknown"
+                energy = row.get("Energy_Score") or "Unknown"
+                bias = row.get("Dealer_Bias") or "Unknown"
+                distance = _format_distance(row.get("Distance_To_Spot"))
+                strike = _format_strike(row.get("Strike", ""))
+                lines.append(
+                    f"- {strike}: {classification} | Regime: {regime} | Energy: {energy} | "
+                    f"Dealer Bias: {bias} | Distance to Spot: {distance}"
+                )
 
     target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return target_path
