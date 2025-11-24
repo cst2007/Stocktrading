@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from numbers import Number
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Sequence
+from typing import Dict, List, Mapping, Sequence
 
 import pandas as pd
 
@@ -258,6 +258,7 @@ def process_pair(
     market_state = derived_df.attrs.get("market_state")
     market_state_description = derived_df.attrs.get("market_state_description")
     market_state_components = derived_df.attrs.get("market_state_components")
+    market_state_playbook = derived_df.attrs.get("market_state_playbook")
     safe_ticker = pair.ticker.replace("/", "-") or "unknown"
     safe_expiry = (
         pair.expiry.replace("/", "-") if pair.expiry != "UNKNOWN" else "unknown"
@@ -275,6 +276,7 @@ def process_pair(
         market_state=market_state,
         market_state_description=market_state_description,
         market_state_components=market_state_components,
+        market_state_playbook=market_state_playbook,
     )
 
     insights_dir = derived_dir / "insights"
@@ -391,13 +393,14 @@ def _write_market_structure_file(
     market_state: str | None,
     market_state_description: str | None,
     market_state_components: Dict[str, object] | None,
+    market_state_playbook: Mapping[str, object] | None = None,
 ) -> Path | None:
     """Persist the market structure summary next to the derived CSV.
 
     The returned path points to a ``*.txt`` file containing the market state
-    name, its plain-English description, and the individual classification
-    components. If ``market_state`` is falsy, no file is written and ``None`` is
-    returned.
+    name, its plain-English description, the individual classification
+    components, and the relevant playbook guidance. If ``market_state`` is
+    falsy, no file is written and ``None`` is returned.
     """
 
     if not market_state:
@@ -415,6 +418,26 @@ def _write_market_structure_file(
         lines.append("Components:")
         for key, value in sorted(market_state_components.items()):
             lines.append(f"- {key}: {value}")
+
+    if market_state_playbook:
+        next_step = market_state_playbook.get("next_step")
+        useful_metrics = market_state_playbook.get("useful_metrics")
+        avoid = market_state_playbook.get("avoid")
+
+        if any([next_step, useful_metrics, avoid]):
+            lines.append("")
+            lines.append("Playbook:")
+
+        if next_step:
+            lines.append(f"Next Step: {next_step}")
+
+        if useful_metrics:
+            lines.append("Useful Metrics:")
+            for metric in useful_metrics:
+                lines.append(f"- {metric}")
+
+        if avoid:
+            lines.append(f"Avoid: {avoid}")
 
     target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return target_path
