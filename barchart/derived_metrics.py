@@ -89,7 +89,7 @@ MARKET_STATE_DESCRIPTIONS: dict[str, str] = {
         "Behavior: Slow grind up, shallow pullbacks, strong buy pressure. "
         "Adam: Best long setup of all."
     ),
-    "Dip-Acceleration → Magnet Up (Conditional Long Adam)": (
+    "Dip Acceleration → Magnet Up": (
         "Plain English: Dips fall faster than normal but bounce harder. "
         "Behavior: Quick flush → strong bounce → drift upward. "
         "Adam: Long only if the dip holds a key level."
@@ -104,7 +104,7 @@ MARKET_STATE_DESCRIPTIONS: dict[str, str] = {
         "Behavior: Small movements, chop, no trend. "
         "Adam: Avoid. No energy."
     ),
-    "Support + Weak Down Magnet (Weak Long Scalp)": (
+    "Support + Weak Magnet (Weak Long Scalp)": (
         "Plain English: There’s some support below, but market still leans downward. "
         "Behavior: Small bounces, but overall drifting down. "
         "Adam: Weak long scalp only — not a strong trend."
@@ -134,7 +134,7 @@ MARKET_STATE_DESCRIPTIONS: dict[str, str] = {
         "Behavior: Random violent swings. "
         "Adam: Avoid — unpredictable."
     ),
-    "Uptrend + Brake (No Adam)": (
+    "Uptrend With Brake (No Adam)": (
         "Plain English: Market goes up, but slowly and with hesitation. "
         "Behavior: Choppy, grindy up-move. "
         "Adam: No — too slow for momentum."
@@ -143,6 +143,26 @@ MARKET_STATE_DESCRIPTIONS: dict[str, str] = {
         "Plain English: Market explodes upward unpredictably. Too wild. "
         "Behavior: Violent vertical spikes. "
         "Adam: Avoid — impossible to place a safe stop."
+    ),
+    "Tug-of-War (No Adam)": (
+        "Plain English: Bulls and bears cancel each other out and price chops. "
+        "Behavior: Push up → pull back down repeatedly. "
+        "Adam: Avoid until a clear winner emerges."
+    ),
+    "Super-Magnet Down (Strongest Short Adam)": (
+        "Plain English: Gravity dominates and every rally snaps lower. "
+        "Behavior: Relentless lower highs with hard flushes. "
+        "Adam: Prime short setup until IV crush flips regime."
+    ),
+    "Fake Up → Drop (Short Scalp)": (
+        "Plain English: Market fakes higher to lure buyers then dumps. "
+        "Behavior: Quick pop into resistance then sharp rejection. "
+        "Adam: Short scalp focused on the rejection."
+    ),
+    "Volatile Downtrend (Short Adam Possible)": (
+        "Plain English: Downtrend with violent swings. "
+        "Behavior: Spiky pullbacks that fail quickly. "
+        "Adam: Short setups exist but require caution."
     ),
     "Volatility Box (Avoid)": (
         "Plain English: Market is wild and directionless. Both up and down moves "
@@ -158,6 +178,99 @@ MARKET_STATE_DESCRIPTIONS: dict[str, str] = {
         "Plain English: There is no support and exposure pulls price straight down. "
         "Behavior: Pull → overshoot → failed base → continuation. "
         "Adam: One of the best short entries possible."
+    ),
+}
+
+
+@dataclass(frozen=True)
+class MarketStatePlaybook:
+    next_step: str
+    useful_metrics: tuple[str, ...]
+    avoid: str
+
+
+MARKET_STATE_PLAYBOOK: dict[str, MarketStatePlaybook] = {
+    "Best Bullish (Long Adam)": MarketStatePlaybook(
+        next_step="Look for Gamma Box bottom → prepare for long entry.",
+        useful_metrics=("GEX curvature (dGEX/dSpot)", "VEX: positive VEX supports melt-up", "TEX: negative TEX confirms drift", "Expected Move & PC Walls → for targets"),
+        avoid="Shorts. Overthinking. This is clean.",
+    ),
+    "Dip Acceleration → Magnet Up": MarketStatePlaybook(
+        next_step="Wait for the dip → find Gamma Box support → long.",
+        useful_metrics=("GEX distance below", "Relative distance to spot (Rel_Dist)", "VEX must not be aggressively negative", "IV direction: down = confirmation"),
+        avoid="Chasing upside early.",
+    ),
+    "Upside Stall (No Adam)": MarketStatePlaybook(
+        next_step=(
+            "Check if stall is inside Gamma Box center. If yes → avoid. If at top of box → prepare fade. If breaking out → check VEX for confirmation"
+        ),
+        useful_metrics=("Gamma Box top boundary", "VEX direction (decides breakout vs stall)", "IVxOI congestion"),
+        avoid="Directional Adam setups.",
+    ),
+    "Low-Volatility Stall (Avoid Adam)": MarketStatePlaybook(
+        next_step="Pull Gamma Box and determine WHERE spot sits. If center → avoid everything. If bottom → watch for bounce. If top → watch for fade. If touching edge → breakout window",
+        useful_metrics=("Gamma Box width", "dGEX/dSpot (flat = pinning)", "VEX: spike = end of stall"),
+        avoid="Adam trades until a boundary interaction occurs.",
+    ),
+    "Support + Weak Magnet (Weak Long Scalp)": MarketStatePlaybook(
+        next_step="Locate Gamma Box bottom → scalp long ONLY if VEX positive.",
+        useful_metrics=("VEX: MUST be supportive", "Delta build-up (Net_DEX shrinking negative)", "TEX (theta-driven reversion)"),
+        avoid="Expecting extended trend.",
+    ),
+    "Very Bearish (Strong Short Adam)": MarketStatePlaybook(
+        next_step="Locate Gamma Box top → short the first failed rise.",
+        useful_metrics=("dGEX/dSpot (negative slope = waterfall risk)", "VEX negativity (supercharges trend)", "Expected Move lower bound"),
+        avoid="Going long unless regime flips.",
+    ),
+    "Fade Rises (No Adam)": MarketStatePlaybook(
+        next_step="Find Gamma Box top → fade into resistance.",
+        useful_metrics=("VEX shouldn’t be strongly positive", "dGEX/dSpot flat or slightly negative", "TEX supportive"),
+        avoid="Breakout assumptions—this regime rarely breaks out cleanly.",
+    ),
+    "Pop → Slam Down (Short Adam)": MarketStatePlaybook(
+        next_step="Wait for the pop into Gamma Box top → short.",
+        useful_metrics=("VEX: strong negative = slam confirmation", "IV direction = up (fear) = stronger move", "PC Wall: if above spot → expect slam into wall"),
+        avoid="Shorting too early before the pop.",
+    ),
+    "Bullish Explosion (Fast Long Adam)": MarketStatePlaybook(
+        next_step="Confirm VEX positive then long the breakout.",
+        useful_metrics=("Put VEX dominance (very bullish)", "dGEX/dSpot shaped upward", "Expected Move upper expansion"),
+        avoid="Waiting too long — these runs go vertical.",
+    ),
+    "Volatility Whipsaw (Avoid Adam)": MarketStatePlaybook(
+        next_step="Use Gamma Box to identify safety zones. Only scalp edges.",
+        useful_metrics=("VEX spikes (avoid)", "IVxOI high clusters → boundaries", "dGEX/dSpot erratic"),
+        avoid="Trend entries. Adam setups. Large positions.",
+    ),
+    "Uptrend With Brake (No Adam)": MarketStatePlaybook(
+        next_step="Wait for Gamma Box breakout to remove the brake.",
+        useful_metrics=("Gamma Box top", "VEX must flip positive", "dGEX/dSpot must steepen"),
+        avoid="Trading inside the box.",
+    ),
+    "Short-Squeeze Blowout (Not Adam)": MarketStatePlaybook(
+        next_step="Monitor for overextension → fade only at top-of-box extremes.",
+        useful_metrics=("VEX positive (fuel)", "IV exploding = exhaustion signal", "EM deviation"),
+        avoid="Directional Adam setups. Stops will be hit instantly.",
+    ),
+    "Tug-of-War (No Adam)": MarketStatePlaybook(
+        next_step="Identify which force is building: VEX or TEX.",
+        useful_metrics=("VEX (negative = bearish)", "TEX (positive = bullish drift)", "Gamma Box middle = chop zone"),
+        avoid="Commitment until a force wins.",
+    ),
+    "Super-Magnet Down (Strongest Short Adam)": MarketStatePlaybook(
+        next_step="Short ANY rise into Gamma Box top.",
+        useful_metrics=("dGEX/dSpot → steep negative slope", "VEX negative", "PC Walls for targets", "Expected Move lower extension"),
+        avoid="Longs unless major IV crush occurs.",
+    ),
+    "Fake Up → Drop (Short Scalp)": MarketStatePlaybook(
+        next_step="Wait for fake-up → enter short at Gamma Box top.",
+        useful_metrics=("VEX negative", "PC Wall overhead", "IV direction up (fear) helping down move"),
+        avoid="Holding shorts too long; this is a scalp.",
+    ),
+    "Volatile Downtrend (Short Adam Possible)": MarketStatePlaybook(
+        next_step="Look for pullbacks to Gamma Box upper boundary → short.",
+        useful_metrics=("VEX negative", "dGEX/dSpot must not flatten", "IV rising = extra fuel"),
+        avoid="Longs inside volatility spikes.",
     ),
 }
 
@@ -288,13 +401,13 @@ def classify_market_state(
             case ("ABOVE", 1, "BELOW", 1):
                 scenario = "Best Bullish (Long Adam)"
             case ("ABOVE", 1, "BELOW", -1):
-                scenario = "Dip-Acceleration → Magnet Up (Conditional Long Adam)"
+                scenario = "Dip Acceleration → Magnet Up"
             case ("ABOVE", 1, "ABOVE", 1):
                 scenario = "Upside Stall (No Adam)"
             case ("ABOVE", 1, "ABOVE", -1):
                 scenario = "Low-Volatility Stall (Avoid Adam)"
             case ("BELOW", 1, "BELOW", 1):
-                scenario = "Support + Weak Down Magnet (Weak Long Scalp)"
+                scenario = "Support + Weak Magnet (Weak Long Scalp)"
             case ("BELOW", 1, "BELOW", -1):
                 scenario = "Very Bearish (Strong Short Adam)"
             case ("BELOW", 1, "ABOVE", 1):
@@ -306,7 +419,7 @@ def classify_market_state(
             case ("ABOVE", -1, "BELOW", -1):
                 scenario = "Volatility Whipsaw (Avoid Adam)"
             case ("ABOVE", -1, "ABOVE", 1):
-                scenario = "Uptrend + Brake (No Adam)"
+                scenario = "Uptrend With Brake (No Adam)"
             case ("ABOVE", -1, "ABOVE", -1):
                 scenario = "Short-Squeeze Blowout (Not Adam)"
             case _:
@@ -807,6 +920,13 @@ def compute_derived_metrics(
         market_state.scenario or "",
         "",
     )
+    playbook = MARKET_STATE_PLAYBOOK.get(market_state.scenario or "")
+    if playbook:
+        metrics.attrs["market_state_playbook"] = {
+            "next_step": playbook.next_step,
+            "useful_metrics": list(playbook.useful_metrics),
+            "avoid": playbook.avoid,
+        }
     metrics.attrs["market_state_components"] = {
         "GEX_location": market_state.gex_location,
         "GEX_sign": market_state.gex_sign,
