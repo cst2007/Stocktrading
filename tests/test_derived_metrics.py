@@ -318,8 +318,8 @@ def test_totals_row_is_appended_when_requested():
     totals_row = metrics.loc[metrics[label_col] == "Total"].iloc[0]
     assert totals_row[label_col] == "Total"
     assert totals_row["Strike"] == ""
-    assert totals_row["Call_Vanna_Highlight"] == ""
-    assert totals_row["Put_Vanna_Highlight"] == ""
+    assert totals_row["Call_Vanna_Rank"] == ""
+    assert totals_row["Put_Vanna_Rank"] == ""
     assert totals_row["Net_GEX_Highlight"] == ""
     assert totals_row["DEX_highlight"] == ""
     assert totals_row["TEX_highlight"] == ""
@@ -512,7 +512,6 @@ def test_put_vex_columns_populated_by_default():
     )
 
     assert metrics.columns[1:13].tolist() == [
-        "Summary",
         "Put VEX",
         "Put VEX Rank",
         "Call VEX",
@@ -524,7 +523,10 @@ def test_put_vex_columns_populated_by_default():
         "Net_GEX_Highlight",
         "dGEX/dSpot",
         "dGEX/dSpot Rank",
+        "Call_IVxOI",
     ]
+
+    assert metrics.columns[-2:].tolist() == ["Summary", "DateTime"]
 
     put_vex_value = metrics.loc[metrics["Strike"] == 100, "Put VEX"].iloc[0]
     expected_put_vex = df.loc[0, "puts_vanna"] * df.loc[0, "puts_iv"] * df.loc[0, "puts_open_interest"]
@@ -567,7 +569,7 @@ def test_put_vanna_highlight_marks_top_strikes():
         iv_direction="up",
     )
 
-    highlighted = metrics.loc[metrics["Put_Vanna_Highlight"] != ""]
+    highlighted = metrics.loc[metrics["Put_Vanna_Rank"] != ""]
     top_put_indices = metrics["Put_Vanna"].nsmallest(4).index
 
     assert set(highlighted.index) == set(top_put_indices)
@@ -575,7 +577,7 @@ def test_put_vanna_highlight_marks_top_strikes():
     for rank, idx in enumerate(top_put_indices, start=1):
         strike_value = _format_strike(metrics.at[idx, "Strike"])
         assert (
-            metrics.at[idx, "Put_Vanna_Highlight"]
+            metrics.at[idx, "Put_Vanna_Rank"]
             == f"Top {rank} : {strike_value}"
         )
 

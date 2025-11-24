@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 HIGHLIGHT_METRIC_MAP = {
     "Net_DEX": "DEX_highlight",
-    "Call_Vanna": "Call_Vanna_Highlight",
-    "Put_Vanna": "Put_Vanna_Highlight",
+    "Call_Vanna": "Call_Vanna_Rank",
+    "Put_Vanna": "Put_Vanna_Rank",
     "Net_GEX": "Net_GEX_Highlight",
     "Call_TEX": "Call_TEX_Highlight",
     "Put_TEX": "Put_TEX_Highlight",

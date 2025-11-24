@@ -47,8 +47,8 @@ def _build_processing_result(tmp_path: Path, summary_df: pd.DataFrame | None = N
                 "Rel_Dist": [0.02, 0.05],
                 "Top5_Regime_Energy_Bias": ["", ""],
                 "DateTime": ["2024-05-01T12:00:00Z", "2024-05-01T12:00:00Z"],
-                "Call_Vanna_Highlight": ["Top 1 : 100.12", ""],
-                "Put_Vanna_Highlight": ["", "Bottom 1 : 90.99"],
+                "Call_Vanna_Rank": ["Top 1 : 100.12", ""],
+                "Put_Vanna_Rank": ["", "Bottom 1 : 90.99"],
                 "Net_GEX_Highlight": ["Top 1 : 100.12", ""],
                 "DEX_highlight": ["Top 1 : 100.12", ""],
                 "Call_TEX_Highlight": ["Top 1 : 100.12", ""],
@@ -159,8 +159,8 @@ def test_highlight_log_appends_full_rows_for_successive_runs(tmp_path):
 
     summary_df = initial_result.strike_summary_df.copy()
     highlight_columns = [
-        "Call_Vanna_Highlight",
-        "Put_Vanna_Highlight",
+        "Call_Vanna_Rank",
+        "Put_Vanna_Rank",
         "Net_GEX_Highlight",
         "DEX_highlight",
         "Call_TEX_Highlight",
@@ -196,10 +196,10 @@ def test_highlight_log_appends_full_rows_for_successive_runs(tmp_path):
     summary_df.loc[100.1234, "Put_IVxOI"] = 11.45
     summary_df.loc[90.9876, "Put_IVxOI"] = 19.21
 
-    summary_df.loc[100.1234, "Call_Vanna_Highlight"] = "Top 1 : 100.12"
+    summary_df.loc[100.1234, "Call_Vanna_Rank"] = "Top 1 : 100.12"
     summary_df.loc[100.1234, "Net_GEX_Highlight"] = "Top 1 : 100.12"
     summary_df.loc[100.1234, "DEX_highlight"] = "Top 1 : 100.12"
-    summary_df.loc[90.9876, "Put_Vanna_Highlight"] = "Bottom 1 : 90.99"
+    summary_df.loc[90.9876, "Put_Vanna_Rank"] = "Bottom 1 : 90.99"
     summary_df.loc[90.9876, "Put_TEX_Highlight"] = "Top 1 : 90.99"
     summary_df.loc[90.9876, "TEX_highlight"] = "Top 1 : 90.99"
     summary_df.loc[90.9876, "Put_IVxOI_Rank"] = "Top 1 : 90.99"

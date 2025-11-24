@@ -33,9 +33,9 @@ DERIVED_CSV_HEADER = [
     "Dealer_Bias",
     "Rel_Dist",
     "Call_Vanna",
-    "Call_Vanna_Highlight",
+    "Call_Vanna_Rank",
     "Put_Vanna",
-    "Put_Vanna_Highlight",
+    "Put_Vanna_Rank",
     "Net_Vanna",
     "Call_GEX",
     "Put_GEX",
@@ -53,6 +53,7 @@ DERIVED_CSV_HEADER = [
     "Call_Vanna_Ratio",
     "Put_Vanna_Ratio",
     "Vanna_GEX_Total",
+    "Summary",
     "DateTime",
 ]
 
@@ -487,8 +488,8 @@ def apply_highlight_annotations(metrics: pd.DataFrame) -> None:
     """Populate highlight columns for the most notable strike metrics."""
 
     highlight_columns = [
-        "Call_Vanna_Highlight",
-        "Put_Vanna_Highlight",
+        "Call_Vanna_Rank",
+        "Put_Vanna_Rank",
         "Net_GEX_Highlight",
         "DEX_highlight",
         "Call_TEX_Highlight",
@@ -548,10 +549,10 @@ def apply_highlight_annotations(metrics: pd.DataFrame) -> None:
             used_indices.append(idx)
         return used_indices
 
-    _set_ranked_highlights("Call_Vanna", "Call_Vanna_Highlight", top_n=4)
+    _set_ranked_highlights("Call_Vanna", "Call_Vanna_Rank", top_n=4)
     _set_ranked_highlights(
         "Put_Vanna",
-        "Put_Vanna_Highlight",
+        "Put_Vanna_Rank",
         top_n=4,
         use_nsmallest=True,
     )
@@ -852,8 +853,8 @@ def compute_derived_metrics(
                         metrics["Strike"] == strike_value, "dGEX/dSpot Rank"
                     ] = f"Bottom {rank}: {strike_label}"
 
-    metrics["Call_Vanna_Highlight"] = ""
-    metrics["Put_Vanna_Highlight"] = ""
+    metrics["Call_Vanna_Rank"] = ""
+    metrics["Put_Vanna_Rank"] = ""
     metrics["Net_GEX_Highlight"] = ""
     metrics["DEX_highlight"] = ""
     metrics["Call_TEX_Highlight"] = ""
@@ -1056,15 +1057,14 @@ def compute_derived_metrics(
         metrics[summary_column] = ""
 
     column_order = (
-        ["Strike", summary_column]
+        ["Strike"]
         + [
             column
             for column in DERIVED_CSV_HEADER
             if column != "Strike" and column in metrics.columns
         ]
         if "Strike" in metrics.columns
-        else [summary_column]
-        + [column for column in DERIVED_CSV_HEADER if column in metrics.columns]
+        else [column for column in DERIVED_CSV_HEADER if column in metrics.columns]
     )
     result = metrics.loc[:, column_order].copy()
 
