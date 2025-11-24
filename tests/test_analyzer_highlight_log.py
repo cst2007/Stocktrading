@@ -89,6 +89,8 @@ def _build_processing_result(tmp_path: Path, summary_df: pd.DataFrame | None = N
         median_ivxoi=float(summary_df["Median_IVxOI"].iloc[0]),
         iv_direction="down",
         strike_summary_df=summary_df,
+        top5_detail={},
+        spot_price_used=100.0,
     )
 
 

@@ -84,6 +84,175 @@ def _dealer_bias(call_ratio: float | None, put_ratio: float | None, iv_direction
     return "Neutral / Mean Reversion"
 
 
+def _compute_top5_detail(summary: pd.DataFrame, spot_price: float | None) -> Dict[str, object]:
+    """Generate the Top 5 Detail payload from the per-strike summary."""
+
+    def _to_float(value: object) -> float | None:
+        try:
+            number = float(value)
+            if pd.isna(number):
+                return None
+            return number
+        except (TypeError, ValueError):
+            return None
+
+    def _normalize_text(value: object) -> str:
+        return str(value or "").strip().lower()
+
+    def _normalize_regime(value: object) -> str:
+        normalized = _normalize_text(value)
+        if normalized.endswith(" zone"):
+            normalized = normalized.removesuffix(" zone")
+        return normalized
+
+    def _classification_tags(row: pd.Series) -> List[str]:
+        tags: List[str] = []
+        energy = _normalize_text(row.get("Energy_Score"))
+        regime = _normalize_regime(row.get("Regime"))
+        bias = _normalize_text(row.get("Dealer_Bias"))
+
+        energy_high = energy == "high"
+        energy_moderate = energy == "moderate"
+        regime_in_fade = regime in {"gamma pin", "vol drift down"}
+        regime_long_drift = regime == "vol drift up"
+        regime_short_drift = regime == "vol drift down"
+        regime_transition = regime == "transition"
+
+        bias_bearish = "bearish fade" in bias
+        bias_bullish = "bullish drift" in bias
+        bias_neutral = "neutral" in bias
+
+        if energy_high and regime_in_fade and (bias_bearish or bias_neutral):
+            tags.append("Fade_Zone")
+
+        if energy_high and regime_long_drift and bias_bullish:
+            tags.append("Long_Drift_Zone")
+
+        if energy_high and regime_short_drift and bias_bearish:
+            tags.append("Short_Drift_Zone")
+
+        if regime_transition and (energy_high or energy_moderate):
+            tags.append("Flip_Zone")
+
+        if energy_high:
+            tags.append("Magnet")
+
+        # Preserve tag order but ensure uniqueness
+        seen: set[str] = set()
+        ordered: List[str] = []
+        for tag in tags:
+            if tag not in seen:
+                ordered.append(tag)
+                seen.add(tag)
+        return ordered
+
+    def _default_payload() -> Dict[str, object]:
+        return {
+            "Primary_Fade_Level": None,
+            "Primary_Long_Drift_Level": None,
+            "Primary_Short_Drift_Level": None,
+            "Flip_Zone": None,
+            "Nearest_Magnet": None,
+            "Secondary_Magnet": None,
+            "Top5_Detail": [],
+        }
+
+    if summary.empty:
+        return _default_payload()
+
+    call_volume = pd.to_numeric(summary.get("Call_Volume"), errors="coerce").fillna(0)
+    put_volume = pd.to_numeric(summary.get("Put_Volume"), errors="coerce").fillna(0)
+    call_oi = pd.to_numeric(summary.get("Call_OI"), errors="coerce").fillna(0)
+    put_oi = pd.to_numeric(summary.get("Put_OI"), errors="coerce").fillna(0)
+
+    volume_sum = call_volume + put_volume
+    oi_sum = call_oi + put_oi
+    activity_score = volume_sum.where(volume_sum > 0, oi_sum).astype(float)
+
+    top_indices = activity_score.nlargest(min(5, len(summary))).index
+
+    detail_rows: List[Dict[str, object]] = []
+    for idx in top_indices:
+        row = summary.loc[idx]
+        strike_value = _to_float(idx)
+        distance_value = _to_float(row.get("Distance_To_Spot"))
+        tags = _classification_tags(row)
+        detail_rows.append(
+            {
+                "Strike": strike_value,
+                "Classification": ", ".join(tags),
+                "Energy_Score": row.get("Energy_Score"),
+                "Regime": row.get("Regime"),
+                "Dealer_Bias": row.get("Dealer_Bias"),
+                "Distance_To_Spot": distance_value,
+                "_tags": tags,
+                "_distance": distance_value,
+            }
+        )
+
+    def _select_smallest_positive(tag: str) -> float | None:
+        candidates = [
+            row for row in detail_rows if tag in row["_tags"] and row["_distance"] is not None and row["_distance"] > 0
+        ]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda row: row["_distance"])["Strike"]
+
+    def _select_smallest_negative(tag: str) -> float | None:
+        candidates = [
+            row for row in detail_rows if tag in row["_tags"] and row["_distance"] is not None and row["_distance"] < 0
+        ]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda row: row["_distance"])["Strike"]
+
+    def _select_nearest(tag: str) -> float | None:
+        candidates = [
+            row for row in detail_rows if tag in row["_tags"] and row["_distance"] is not None
+        ]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda row: abs(float(row["_distance"])))["Strike"]
+
+    fade_level = _select_smallest_positive("Fade_Zone")
+
+    long_drift_positive = _select_smallest_positive("Long_Drift_Zone")
+    long_drift_negative = _select_smallest_negative("Long_Drift_Zone") if long_drift_positive is None else None
+    long_drift_level = long_drift_positive if long_drift_positive is not None else long_drift_negative
+
+    short_drift_level = _select_smallest_positive("Short_Drift_Zone")
+    flip_zone = _select_nearest("Flip_Zone")
+
+    magnet_rows = [
+        row
+        for row in detail_rows
+        if "Magnet" in row["_tags"] and row["_distance"] is not None
+    ]
+    magnet_rows.sort(key=lambda row: float(row["_distance"]))
+
+    nearest_magnet = magnet_rows[0]["Strike"] if magnet_rows else None
+    secondary_magnet = magnet_rows[1]["Strike"] if len(magnet_rows) > 1 else None
+
+    # Remove helper keys before returning
+    for row in detail_rows:
+        row.pop("_tags", None)
+        row.pop("_distance", None)
+
+    payload = _default_payload()
+    payload.update(
+        {
+            "Primary_Fade_Level": fade_level,
+            "Primary_Long_Drift_Level": long_drift_level,
+            "Primary_Short_Drift_Level": short_drift_level,
+            "Flip_Zone": flip_zone,
+            "Nearest_Magnet": nearest_magnet,
+            "Secondary_Magnet": secondary_magnet,
+            "Top5_Detail": detail_rows,
+        }
+    )
+    return payload
+
+
 @dataclass
 class ProcessingResult:
     """Container for the metrics generated from a Barchart CSV."""
@@ -113,6 +282,8 @@ class ProcessingResult:
     median_ivxoi: float | None
     iv_direction: str
     strike_summary_df: pd.DataFrame
+    top5_detail: Dict[str, object]
+    spot_price_used: float | None
 
 
 @dataclass
@@ -283,6 +454,8 @@ class BarchartOptionsAnalyzer:
             median_ivxoi=metrics["median_ivxoi"],
             iv_direction=metrics["iv_direction"],
             strike_summary_df=summary_df,
+            top5_detail=metrics["top5_detail"],
+            spot_price_used=metrics.get("spot_price_used"),
         )
 
         self._write_outputs(result)
@@ -807,12 +980,14 @@ class BarchartOptionsAnalyzer:
             spot_series = pd.to_numeric(df["underlying_price"], errors="coerce").dropna()
             if not spot_series.empty:
                 spot_value = float(spot_series.mean())
+        strike_values = pd.Series(summary.index.astype(float), index=summary.index, dtype="Float64")
         if spot_value is not None and spot_value > 0:
-            strike_values = pd.Series(summary.index.astype(float), index=summary.index, dtype="Float64")
             rel_dist = ((strike_values - float(spot_value)).abs() / float(spot_value)).round(4)
             summary["Rel_Dist"] = rel_dist.astype("Float64")
+            summary["Distance_To_Spot"] = (strike_values - float(spot_value)).round(4)
         else:
             summary["Rel_Dist"] = pd.Series(pd.NA, index=summary.index, dtype="Float64")
+            summary["Distance_To_Spot"] = pd.Series(pd.NA, index=summary.index, dtype="Float64")
 
         timestamp_value = (
             datetime.now(timezone.utc)
@@ -842,6 +1017,8 @@ class BarchartOptionsAnalyzer:
                     f"{strike_str}: {regime} | {energy} | {bias}"
                 )
 
+        top5_detail = _compute_top5_detail(summary, spot_value)
+
         return {
             "total_gex": float(gex_by_strike.sum()),
             "total_vanna": float(vanna_by_strike.sum()),
@@ -855,6 +1032,8 @@ class BarchartOptionsAnalyzer:
             "summary_by_strike": summary,
             "median_ivxoi": median_ivxoi,
             "iv_direction": iv_direction,
+            "top5_detail": top5_detail,
+            "spot_price_used": spot_value,
         }
 
     def _log_debug_calculations(
@@ -962,6 +1141,8 @@ class BarchartOptionsAnalyzer:
             "top5_bias_summary": result.top5_bias_summary,
             "median_ivxoi": result.median_ivxoi,
             "iv_direction": result.iv_direction,
+            "top5_detail": result.top5_detail,
+            "spot_price_used": result.spot_price_used,
         }
 
         with json_path.open("w", encoding="utf-8") as f:
@@ -984,6 +1165,7 @@ class BarchartOptionsAnalyzer:
                 "dealer_bias": summary_df["Dealer_Bias"],
                 "iv_direction": result.iv_direction,
                 "rel_dist": summary_df["Rel_Dist"],
+                "distance_to_spot": summary_df.get("Distance_To_Spot"),
                 "top5_regime_energy_bias": summary_df["Top5_Regime_Energy_Bias"],
             }
         )

@@ -1,54 +1,128 @@
 Top 5 Detail
 ============
-{
-  "Primary_Fade_Level": null,
-  "Primary_Long_Drift_Level": null,
-  "Primary_Short_Drift_Level": null,
-  "Flip_Zone": null,
 
-  "Nearest_Magnet": 101.0,
-  "Secondary_Magnet": 102.0,
+This section documents the end-to-end logic for populating the "Top 5 Detail" block that feeds the trading model. The process is divided into four stages: extract, classify, prioritize, and output.
+
+⭐ STAGE 1 — EXTRACT
+Input Fields (per strike)
+
+Load the following fields for each strike:
+- Strike
+- Call_Volume
+- Put_Volume
+- Call_OI
+- Put_OI
+- Energy_Score
+- Regime
+- Dealer_Bias
+- Distance_To_Spot
+
+Computation — Activity Score
+```
+Activity_Score =
+    if (Call_Volume + Put_Volume) > 0:
+        Call_Volume + Put_Volume
+    else:
+        Call_OI + Put_OI
+```
+
+Selection — Top 5
+- Sort all strikes by `Activity_Score` in descending order.
+- `Top5_Strikes` are the first five strikes in the sorted list.
+
+Output of Stage 1
+```
+Top5 = [
+    {Strike, Energy_Score, Regime, Dealer_Bias, Distance_To_Spot},
+    ... 5 total records ...
+]
+```
+
+⭐ STAGE 2 — CLASSIFY
+
+For each of the five strikes, assign a classification tag using the following logic:
+
+1. **Fade Zone**
+   - `Energy_Score == "High"`
+   - `Regime` is `Gamma Pin` **or** `Vol Drift Down`
+   - `Dealer_Bias` is `Bearish Fade` **or** `Neutral`
+   - → `Classification = "Fade_Zone"`
+
+2. **Long Drift Zone**
+   - `Energy_Score == "High"`
+   - `Regime == "Vol Drift Up"`
+   - `Dealer_Bias == "Bullish Drift"`
+   - → `Classification = "Long_Drift_Zone"`
+
+3. **Short Drift Zone**
+   - `Energy_Score == "High"`
+   - `Regime == "Vol Drift Down"`
+   - `Dealer_Bias == "Bearish Fade"`
+   - → `Classification = "Short_Drift_Zone"`
+
+4. **Flip Zone**
+   - `Regime == "Transition"`
+   - `Energy_Score == "High"` **or** `Energy_Score == "Moderate"`
+   - → `Classification = "Flip_Zone"`
+
+5. **Magnet Strike**
+   - If `Energy_Score == "High"`, append `"Magnet"` to the `Classification` list (can be combined with the other tags above).
+
+Output of Stage 2
+```
+Top5_Classified = [
+    {Strike, Classification, Energy_Score, Regime, Dealer_Bias, Distance_To_Spot},
+    ...
+]
+```
+
+⭐ STAGE 3 — PRIORITIZE
+
+From `Top5_Classified`, pick the primary levels and magnet targets.
+
+1. **Primary Fade Level**
+   - Strikes where `Classification == "Fade_Zone"`.
+   - Choose the strike with the smallest positive `Distance_To_Spot` (nearest above spot).
+
+2. **Primary Long Drift Level**
+   - Strikes where `Classification == "Long_Drift_Zone"`.
+   - Choose the strike with the smallest positive `Distance_To_Spot` (nearest above), or if none exist, the smallest negative `Distance_To_Spot` (nearest below).
+
+3. **Primary Short Drift Level**
+   - Strikes where `Classification == "Short_Drift_Zone"`.
+   - Choose the strike with the smallest positive `Distance_To_Spot`.
+
+4. **Flip Zone**
+   - Strikes where `Classification == "Flip_Zone"`.
+   - Choose the strike with the smallest absolute `Distance_To_Spot`.
+
+5. **Magnet Targets**
+   - All strikes where `Classification` contains `"Magnet"`, sorted by `Distance_To_Spot` ascending.
+   - `Nearest_Magnet` is the first element; `Secondary_Magnet` is the second element if it exists.
+
+⭐ STAGE 4 — OUTPUT (Trading Model Results)
+
+Write the final result block in the following structure, using `null` when no qualifying strike exists:
+```
+{
+  "Primary_Fade_Level": <strike or null>,
+  "Primary_Long_Drift_Level": <strike or null>,
+  "Primary_Short_Drift_Level": <strike or null>,
+  "Flip_Zone": <strike or null>,
+
+  "Nearest_Magnet": <strike>,
+  "Secondary_Magnet": <strike or null>,
 
   "Top5_Detail": [
       {
-        "Strike": 100.0,
-        "Classification": "Unclassified",
-        "Regime": "Gamma Pin",
-        "Energy_Score": "Low",
-        "Dealer_Bias": "Neutral",
-        "Distance_To_Spot": -2.0
+        "Strike": ...,
+        "Classification": ...,
+        "Regime": ...,
+        "Energy_Score": ...,
+        "Dealer_Bias": ...,
+        "Distance_To_Spot": ...
       },
-      {
-        "Strike": 101.0,
-        "Classification": "Fade_Zone, Short_Drift_Zone, Magnet",
-        "Regime": "Vol Drift Down",
-        "Energy_Score": "High",
-        "Dealer_Bias": "Bearish Fade",
-        "Distance_To_Spot": -1.0
-      },
-      {
-        "Strike": 102.0,
-        "Classification": "Magnet",
-        "Regime": "Post-Earnings Vanna Rally",
-        "Energy_Score": "High",
-        "Dealer_Bias": "Bullish Drift",
-        "Distance_To_Spot": 0.0
-      },
-      {
-        "Strike": 103.0,
-        "Classification": "Unclassified",
-        "Regime": "Vol Drift Down",
-        "Energy_Score": "Low",
-        "Dealer_Bias": "Bearish Fade",
-        "Distance_To_Spot": 1.0
-      },
-      {
-        "Strike": 104.0,
-        "Classification": "Unclassified",
-        "Regime": "Transition Zone",
-        "Energy_Score": "Low",
-        "Dealer_Bias": "Neutral",
-        "Distance_To_Spot": 2.0
-      }
+      ...
   ]
 }
+```
