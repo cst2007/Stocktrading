@@ -24,6 +24,7 @@ DERIVED_CSV_HEADER = [
     "Energy_Score",
     "Regime",
     "Dealer_Bias",
+    "Bias",
     "Call_IVxOI",
     "Put_IVxOI",
     "IVxOI",
@@ -484,6 +485,24 @@ def _dealer_bias(row: pd.Series, iv_direction: str) -> str:
     return "Neutral / Mean Reversion"
 
 
+def _bias_signal(energy_score: str, regime: str) -> str:
+    energy = (energy_score or "").strip().lower()
+    scenario = (regime or "").strip().lower()
+
+    if energy != "high":
+        return ""
+
+    if scenario == "gamma pin":
+        return "FADE"
+    if scenario == "vol drift up":
+        return "LONG"
+    if scenario == "vol drift down":
+        return "SHORT"
+    if scenario == "transition zone":
+        return "WAIT FOR BREAKOUT"
+    return ""
+
+
 def apply_highlight_annotations(metrics: pd.DataFrame) -> None:
     """Populate highlight columns for the most notable strike metrics."""
 
@@ -777,6 +796,9 @@ def compute_derived_metrics(
 
     metrics["Regime"] = metrics.apply(_classify_regime, axis=1, iv_direction=direction_value)
     metrics["Dealer_Bias"] = metrics.apply(_dealer_bias, axis=1, iv_direction=direction_value)
+    metrics["Bias"] = metrics.apply(
+        lambda row: _bias_signal(row["Energy_Score"], row["Regime"]), axis=1
+    )
 
     rel_spot = spot_price
     if rel_spot is None and "Spot" in unified_df.columns:
