@@ -23,6 +23,12 @@ def test_write_market_structure_file(tmp_path: Path) -> None:
         tex_direction=-1,
         gamma_box_high=4350,
         gamma_box_low=4200,
+        breakout_up=True,
+        breakout_down=False,
+        vex_dir_box_high=1,
+        vex_dir_box_low=-1,
+        tex_dir_box_high=1,
+        tex_dir_box_low=-1,
     )
 
     assert path is not None
@@ -46,6 +52,12 @@ def test_write_market_structure_file(tmp_path: Path) -> None:
     assert "Execution:" in content
     assert "- Gamma_Box_High: 4350" in content
     assert "- Gamma_Box_Low: 4200" in content
+    assert "Breakout_Up: True" in content
+    assert "Breakout_Down: False" in content
+    assert "VEX_dir_Box_high: 1" in content
+    assert "Downside fuel" in content
+    assert "TEX_dir_Box_high: 1" in content
+    assert "Slow downside drift" in content
 
 
 def test_write_market_structure_file_skips_when_absent(tmp_path: Path) -> None:

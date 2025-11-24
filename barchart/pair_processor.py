@@ -263,6 +263,12 @@ def process_pair(
     tex_direction = derived_df.attrs.get("tex_direction")
     gamma_box_high = derived_df.attrs.get("gamma_box_high")
     gamma_box_low = derived_df.attrs.get("gamma_box_low")
+    breakout_up = derived_df.attrs.get("gamma_box_breakout_up")
+    breakout_down = derived_df.attrs.get("gamma_box_breakout_down")
+    vex_dir_box_high = derived_df.attrs.get("vex_dir_box_high")
+    vex_dir_box_low = derived_df.attrs.get("vex_dir_box_low")
+    tex_dir_box_high = derived_df.attrs.get("tex_dir_box_high")
+    tex_dir_box_low = derived_df.attrs.get("tex_dir_box_low")
     safe_ticker = pair.ticker.replace("/", "-") or "unknown"
     safe_expiry = (
         pair.expiry.replace("/", "-") if pair.expiry != "UNKNOWN" else "unknown"
@@ -285,6 +291,12 @@ def process_pair(
         tex_direction=tex_direction,
         gamma_box_high=gamma_box_high,
         gamma_box_low=gamma_box_low,
+        breakout_up=breakout_up,
+        breakout_down=breakout_down,
+        vex_dir_box_high=vex_dir_box_high,
+        vex_dir_box_low=vex_dir_box_low,
+        tex_dir_box_high=tex_dir_box_high,
+        tex_dir_box_low=tex_dir_box_low,
     )
 
     insights_dir = derived_dir / "insights"
@@ -406,6 +418,12 @@ def _write_market_structure_file(
     tex_direction: int | None = None,
     gamma_box_high: float | None = None,
     gamma_box_low: float | None = None,
+    breakout_up: bool | None = None,
+    breakout_down: bool | None = None,
+    vex_dir_box_high: int | None = None,
+    vex_dir_box_low: int | None = None,
+    tex_dir_box_high: int | None = None,
+    tex_dir_box_low: int | None = None,
 ) -> Path | None:
     """Persist the market structure summary next to the derived CSV.
 
@@ -472,6 +490,24 @@ def _write_market_structure_file(
 
         return f"{number:.2f}".rstrip("0").rstrip(".")
 
+    def _format_box_direction(
+        label: str,
+        direction: int | None,
+        *,
+        positive: str,
+        negative: str,
+        neutral: str,
+    ) -> str | None:
+        if direction is None:
+            return None
+
+        return f"  {label}: {direction} (" + _interpret(
+            direction,
+            positive=positive,
+            negative=negative,
+            neutral=neutral,
+        ) + ")"
+
     if vex_direction is not None:
         lines.append("")
         lines.append("VEX Direction:")
@@ -503,8 +539,48 @@ def _write_market_structure_file(
     execution_lines: List[str] = []
     if gamma_box_high is not None:
         execution_lines.append(f"- Gamma_Box_High: {_format_strike(gamma_box_high)}")
+        if breakout_up is not None:
+            execution_lines.append(f"  Breakout_Up: {breakout_up}")
+        vex_high_line = _format_box_direction(
+            "VEX_dir_Box_high",
+            vex_dir_box_high,
+            positive="Upside fuel",
+            negative="Downside fuel",
+            neutral="Neutral",
+        )
+        if vex_high_line:
+            execution_lines.append(vex_high_line)
+        tex_high_line = _format_box_direction(
+            "TEX_dir_Box_high",
+            tex_dir_box_high,
+            positive="Slow upside drift",
+            negative="Slow downside drift",
+            neutral="Neutral",
+        )
+        if tex_high_line:
+            execution_lines.append(tex_high_line)
     if gamma_box_low is not None:
         execution_lines.append(f"- Gamma_Box_Low: {_format_strike(gamma_box_low)}")
+        if breakout_down is not None:
+            execution_lines.append(f"  Breakout_Down: {breakout_down}")
+        vex_low_line = _format_box_direction(
+            "VEX_dir_Box_low",
+            vex_dir_box_low,
+            positive="Upside fuel",
+            negative="Downside fuel",
+            neutral="Neutral",
+        )
+        if vex_low_line:
+            execution_lines.append(vex_low_line)
+        tex_low_line = _format_box_direction(
+            "TEX_dir_Box_low",
+            tex_dir_box_low,
+            positive="Slow upside drift",
+            negative="Slow downside drift",
+            neutral="Neutral",
+        )
+        if tex_low_line:
+            execution_lines.append(tex_low_line)
 
     if execution_lines:
         lines.append("")
