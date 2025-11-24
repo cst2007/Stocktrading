@@ -271,7 +271,8 @@ function findMarketStructureDetails(marketState) {
 }
 
 function renderMarketStructure(ticker, marketState) {
-  const isSpx = normalizeStructureName(ticker) === 'spx';
+  const normalizedTicker = normalizeStructureName(ticker);
+  const isSpx = normalizedTicker === 'spx' || normalizedTicker.startsWith('spxw');
   const structure = findMarketStructureDetails(marketState);
 
   if (!isSpx || !structure) {
