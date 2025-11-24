@@ -517,7 +517,7 @@ def _write_market_structure_file(
         *,
         spot: float | None,
         ticker_symbol: str | None,
-    ) -> tuple[float, float | None, int | None, float] | None:
+    ) -> tuple[list[float], int | None, float] | None:
         if df is None or spot is None:
             return None
         if "Strike" not in df.columns or "Net_GEX" not in df.columns:
@@ -530,9 +530,8 @@ def _write_market_structure_file(
             return None
 
         magnitudes = data["gex"].abs()
-        percentile_threshold = float(magnitudes.quantile(0.9)) if not magnitudes.empty else 0.0
-        absolute_floor = 20_000_000.0 if (ticker_symbol or "").upper().startswith("SPX") else 0.0
-        threshold = max(percentile_threshold, absolute_floor)
+        percentile_threshold = float(magnitudes.quantile(0.93)) if not magnitudes.empty else 0.0
+        threshold = percentile_threshold
 
         candidates = data.loc[magnitudes >= threshold].copy()
         if candidates.empty:
@@ -541,8 +540,7 @@ def _write_market_structure_file(
         candidates["distance"] = (candidates["strike"] - float(spot)).abs()
         candidates = candidates.sort_values(["distance", "strike"])
 
-        primary_strike = float(candidates.iloc[0]["strike"])
-        secondary_strike = float(candidates.iloc[1]["strike"]) if len(candidates) > 1 else None
+        magnet_levels = [float(value) for value in candidates["strike"].tolist()[:10]]
 
         nearest_idx = data.assign(distance=(data["strike"] - float(spot)).abs())["distance"].idxmin()
         direction_value = data.loc[nearest_idx, "gex"]
@@ -556,7 +554,7 @@ def _write_market_structure_file(
         else:
             direction_sign = 0
 
-        return primary_strike, secondary_strike, direction_sign, threshold
+        return magnet_levels, direction_sign, threshold
 
     if vex_direction is not None:
         lines.append("")
@@ -638,11 +636,17 @@ def _write_market_structure_file(
             execution_lines.append(tex_low_line)
 
     if magnets:
-        primary, secondary, direction_sign, threshold = magnets
+        magnet_levels, direction_sign, threshold = magnets
+        primary = magnet_levels[0]
+        secondary = magnet_levels[1] if len(magnet_levels) > 1 else None
         execution_lines.append("- Magnets:")
         execution_lines.append(f"  Primary: {_format_strike(primary)}")
         if secondary is not None:
             execution_lines.append(f"  Secondary: {_format_strike(secondary)}")
+        execution_lines.append(
+            "  Levels (max 10): "
+            + ", ".join(_format_strike(level) for level in magnet_levels)
+        )
         if direction_sign is not None:
             execution_lines.append(
                 "  Direction: "
