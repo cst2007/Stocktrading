@@ -22,6 +22,33 @@ def test_write_market_structure_file(tmp_path: Path) -> None:
         "avoid": "Shorts. Overthinking. This is clean.",
     }
 
+    top5_detail = {
+        "Primary_Fade_Level": 4400,
+        "Primary_Long_Drift_Level": None,
+        "Primary_Short_Drift_Level": 4200,
+        "Flip_Zone": None,
+        "Nearest_Magnet": 4300,
+        "Secondary_Magnet": None,
+        "Top5_Detail": [
+            {
+                "Strike": 4400,
+                "Classification": "Fade_Zone, Magnet",
+                "Energy_Score": "High",
+                "Regime": "Gamma Pin",
+                "Dealer_Bias": "Bearish Fade",
+                "Distance_To_Spot": 50,
+            },
+            {
+                "Strike": 4200,
+                "Classification": "Short_Drift_Zone",
+                "Energy_Score": "High",
+                "Regime": "Vol Drift Down",
+                "Dealer_Bias": "Bearish Fade",
+                "Distance_To_Spot": -150,
+            },
+        ],
+    }
+
     path = _write_market_structure_file(
         derived_path,
         market_state="Regime Flip",
@@ -41,6 +68,7 @@ def test_write_market_structure_file(tmp_path: Path) -> None:
         vex_dir_box_low=-1,
         tex_dir_box_high=1,
         tex_dir_box_low=-1,
+        top5_detail=top5_detail,
     )
 
     assert path is not None
@@ -75,6 +103,12 @@ def test_write_market_structure_file(tmp_path: Path) -> None:
     assert "Levels (max 10): 4200" in content
     assert "Direction: 1 (Market pulled UP)" in content
     assert "Threshold: 29,300,000" in content
+    assert "Top 5 Detail:" in content
+    assert "Primary_Fade_Level: 4400" in content
+    assert "Primary_Short_Drift_Level: 4200" in content
+    assert "Nearest_Magnet: 4300" in content
+    assert "Fade_Zone, Magnet | Regime: Gamma Pin | Energy: High | Dealer Bias: Bearish Fade" in content
+    assert "4200: Short_Drift_Zone | Regime: Vol Drift Down" in content
 
 
 def test_write_market_structure_file_skips_when_absent(tmp_path: Path) -> None:
