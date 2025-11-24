@@ -190,6 +190,8 @@ def summarize_metrics(
         direction_series = base_derived["IV_Direction"].dropna().astype(str)
         if not direction_series.empty:
             iv_direction = direction_series.iloc[0]
+    if not iv_direction:
+        iv_direction = str(base_derived.attrs.get("iv_direction", ""))
 
     energy_score = ""
     dealer_bias = ""

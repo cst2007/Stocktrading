@@ -126,8 +126,8 @@ def test_unknown_direction_is_preserved_and_neutral():
         iv_direction="unknown",
     )
 
-    sample_row = metrics_unknown.loc[metrics_unknown["Strike"] == 102].iloc[0]
-    assert sample_row["IV_Direction"] == "unknown"
+    assert "IV_Direction" not in metrics_unknown.columns
+    assert metrics_unknown.attrs["iv_direction"] == "unknown"
 
 
 def test_dgex_dspot_uses_deep_itm_strikes_and_ranks_extremes():

@@ -31,7 +31,6 @@ DERIVED_CSV_HEADER = [
     "Energy_Score",
     "Regime",
     "Dealer_Bias",
-    "IV_Direction",
     "Rel_Dist",
     "Call_Vanna",
     "Call_Vanna_Highlight",
@@ -775,7 +774,6 @@ def compute_derived_metrics(
     metrics["Median_IVxOI"] = median_ivxoi
     metrics["Energy_Score"] = metrics["IVxOI"].apply(_score_energy, median_ivxoi=median_ivxoi)
 
-    metrics["IV_Direction"] = direction_value
     metrics["Regime"] = metrics.apply(_classify_regime, axis=1, iv_direction=direction_value)
     metrics["Dealer_Bias"] = metrics.apply(_dealer_bias, axis=1, iv_direction=direction_value)
 
