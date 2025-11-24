@@ -1,11 +1,20 @@
 from pathlib import Path
 
+import pandas as pd
+
 from barchart.pair_processor import _write_market_structure_file
 
 
 def test_write_market_structure_file(tmp_path: Path) -> None:
     derived_path = tmp_path / "derived_metrics_sample.csv"
     derived_path.write_text("dummy", encoding="utf-8")
+
+    derived_df = pd.DataFrame(
+        {
+            "Strike": [4300, 4400, 4200],
+            "Net_GEX": [10_000_000, -25_000_000, 30_000_000],
+        }
+    )
 
     playbook = {
         "next_step": "Look for Gamma Box bottom → prepare for long entry.",
@@ -19,6 +28,9 @@ def test_write_market_structure_file(tmp_path: Path) -> None:
         market_state_description="Gamma flipped with bearish pressure",
         market_state_components={"GEX_location": "OTM", "DEX_zero": 123.45},
         market_state_playbook=playbook,
+        derived_df=derived_df,
+        ticker="SPX",
+        spot_price=4350,
         vex_direction=1,
         tex_direction=-1,
         gamma_box_high=4350,
@@ -58,6 +70,10 @@ def test_write_market_structure_file(tmp_path: Path) -> None:
     assert "Downside fuel" in content
     assert "TEX_dir_Box_high: 1" in content
     assert "Slow downside drift" in content
+    assert "Magnets:" in content
+    assert "Primary: 4200" in content
+    assert "Direction: 1 (Market pulled UP)" in content
+    assert "Threshold: 29,000,000" in content
 
 
 def test_write_market_structure_file_skips_when_absent(tmp_path: Path) -> None:
