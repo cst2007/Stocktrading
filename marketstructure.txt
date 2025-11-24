@@ -126,3 +126,70 @@ Write the final result block in the following structure, using `null` when no qu
   ]
 }
 ```
+
+📌 1. Primary Fade Level
+
+Use for shorts if above spot
+
+Use for longs if below spot
+
+Most reliable level for rejections
+
+📌 2. Primary Long Drift Continuation Level
+
+If price touches this → consider long continuation
+
+Combine with VEX_dir > 0 and positive dGEX/dSpot
+
+📌 3. Primary Short Drift Continuation Level
+
+If price touches this → consider short continuation
+
+Combine with VEX_dir < 0 and negative dGEX/dSpot
+
+📌 4. Flip Zone
+
+Enter only after breakout confirmation
+
+This level becomes the breakout or rejection pivot
+
+High probability for regime shift
+
+📌 5. Magnet Targets
+
+Output:
+
+Nearest Magnet
+
+Secondary Magnet
+
+Extended Magnet
+
+Used for:
+
+Mean reversion
+
+Breakout targets
+
+Stop placement
+
+Take-profit planning
+
+📌 6. Best Adam Setup Level
+
+This is determined by:
+
+Strong High-Energy strike
+
+Regime supports trend
+
+VEX_dir matches direction
+
+dGEX/dSpot supports breakout or rejection
+
+Spot in correct Gamma Box zone
+
+Example:
+
+If spot is below a High-Energy + Vol Drift Up strike → Long Adam available.
+If spot is above a High-Energy + Vol Drift Down strike → Short Adam available.
