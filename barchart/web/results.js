@@ -30,6 +30,24 @@ const insightModelElement = document.getElementById('result-insight-model');
 const insightLatencyElement = document.getElementById('result-insight-latency');
 const insightPromptElement = document.getElementById('result-insight-prompt');
 const insightResponseElement = document.getElementById('result-insight-response');
+function normalizeResultPayload(rawPayload) {
+  if (!rawPayload || typeof rawPayload !== 'object') {
+    return null;
+  }
+
+  if (
+    rawPayload.result &&
+    !rawPayload.pairDisplay &&
+    !rawPayload.processedAt &&
+    rawPayload.spotPrice === undefined &&
+    rawPayload.ivDirection === undefined
+  ) {
+    return rawPayload.result;
+  }
+
+  return rawPayload;
+}
+
 const MARKET_STRUCTURE_ENTRIES = [
   {
     names: ['Best Bullish (Long Adam)'],
@@ -495,7 +513,11 @@ async function loadResult() {
   const raw = sessionStorage.getItem('latestProcessResult');
   if (raw) {
     try {
-      const data = JSON.parse(raw);
+      const stored = JSON.parse(raw);
+      const data = normalizeResultPayload(stored);
+      if (!data) {
+        throw new Error('Stored results were invalid.');
+      }
       setStatus('Processing run loaded successfully.');
       renderOverview(data);
       renderTabs(data);
@@ -521,7 +543,7 @@ async function loadResult() {
       throw new Error(message);
     }
 
-    const data = payload?.result;
+    const data = normalizeResultPayload(payload?.result ?? payload);
     if (!data || typeof data !== 'object') {
       throw new Error('Latest processing payload was malformed.');
     }
