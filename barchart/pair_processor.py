@@ -229,6 +229,8 @@ def process_pair(
     derived_dir = output_directory / "derived"
     derived_dir.mkdir(parents=True, exist_ok=True)
     calculation_time = datetime.now(timezone.utc)
+    is_spx_option = pair.ticker.strip().upper().startswith("SPX")
+
     spx_exclusions = (
         {
             "Energy_Score",
@@ -252,6 +254,7 @@ def process_pair(
         drop_columns=spx_exclusions,
         include_totals_row=True,
         include_put_vex=exclude_spx_columns,
+        append_market_state_row=is_spx_option,
     )
     market_state = derived_df.attrs.get("market_state")
     market_state_description = derived_df.attrs.get("market_state_description")

@@ -54,8 +54,6 @@ DERIVED_CSV_HEADER = [
     "IV_Direction",
     "Rel_Dist",
     "Top5_Regime_Energy_Bias",
-    "Market_State",
-    "Market_State_Description",
 ]
 
 TOTAL_SUM_COLUMNS = {
@@ -482,6 +480,7 @@ def compute_derived_metrics(
     drop_columns: Sequence[str] | None = None,
     include_totals_row: bool = False,
     include_put_vex: bool = False,
+    append_market_state_row: bool = False,
 ) -> pd.DataFrame:
     """Return the Phase 1 derived exposure metrics for ``unified_df``."""
 
@@ -818,12 +817,6 @@ def compute_derived_metrics(
         "Regime_Flip": market_state.regime_flip,
     }
 
-    metrics["Market_State"] = market_state.scenario or ""
-    metrics["Market_State_Description"] = metrics.attrs.get(
-        "market_state_description",
-        "",
-    )
-
     drop_set = {column for column in (drop_columns or []) if column in metrics.columns}
     if drop_set:
         metrics = metrics.drop(columns=sorted(drop_set))
@@ -885,16 +878,14 @@ def compute_derived_metrics(
                 _summary_row("Net_DEX_Below_Spot", "Net_DEX", net_dex_below_spot)
             )
 
-        if market_state.scenario:
+        if append_market_state_row and market_state.scenario:
+            description = metrics.attrs.get("market_state_description", "")
+            state_summary = f"Market State: {market_state.scenario}"
+            if description:
+                state_summary += f" — {description}"
+
             state_row = {col: "" for col in result.columns}
-            state_row["Strike"] = "Market_State"
-            if "Market_State" in state_row:
-                state_row["Market_State"] = market_state.scenario
-            if "Market_State_Description" in state_row:
-                state_row["Market_State_Description"] = metrics.attrs.get(
-                    "market_state_description",
-                    "",
-                )
+            state_row["Strike"] = state_summary
             summary_rows.append(state_row)
 
         if summary_rows:

@@ -11,6 +11,8 @@ const spotElement = document.getElementById('result-spot');
 const ivDirectionElement = document.getElementById('result-iv-direction');
 const marketStateElement = document.getElementById('result-market-state');
 const marketDescriptionElement = document.getElementById('result-market-description');
+const marketStateContainer = document.getElementById('result-spx-market-state');
+const marketDescriptionContainer = document.getElementById('result-spx-market-description');
 const marketStructureSection = document.getElementById('result-market-structure');
 const marketStructureNameElement = document.getElementById('result-market-structure-name');
 const marketStructurePlainElement = document.getElementById('result-market-structure-plain');
@@ -307,12 +309,27 @@ function renderOverview(data) {
   };
   ivDirectionElement.textContent = directionLabels[directionValue] || 'Unknown';
 
-  const marketState = result.market_state || '';
-  marketStateElement.textContent = marketState || 'Unavailable';
-  marketDescriptionElement.textContent =
-    result.market_state_description || (marketState ? 'No description available.' : 'Unavailable');
+  const tickerValue = result.pair?.ticker || '';
+  const normalizedTicker = normalizeStructureName(tickerValue);
+  const isSpx = normalizedTicker === 'spx' || normalizedTicker.startsWith('spxw');
 
-  renderMarketStructure(result.pair?.ticker, marketState);
+  const marketState = result.market_state || '';
+  const marketDescription = result.market_state_description || '';
+
+  if (isSpx && marketState) {
+    marketStateContainer.hidden = false;
+    marketDescriptionContainer.hidden = false;
+    marketStateElement.textContent = marketState;
+    marketDescriptionElement.textContent =
+      marketDescription || 'No description available.';
+  } else {
+    marketStateContainer.hidden = true;
+    marketDescriptionContainer.hidden = true;
+    marketStateElement.textContent = '';
+    marketDescriptionElement.textContent = '';
+  }
+
+  renderMarketStructure(tickerValue, marketState);
 
   renderFileLink(combinedElement, result.combined_csv, result.combined_csv_url);
   renderFileLink(derivedElement, result.derived_csv, result.derived_csv_url);
