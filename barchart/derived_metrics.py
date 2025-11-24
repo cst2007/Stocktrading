@@ -887,6 +887,8 @@ def compute_derived_metrics(
     net_gex_below_spot: float | None = None
     net_dex_above_spot: float | None = None
     net_dex_below_spot: float | None = None
+    gamma_box_high: float | None = None
+    gamma_box_low: float | None = None
 
     if spot_price is not None and pd.notna(spot_price) and not metrics.empty:
         strike_values = pd.to_numeric(metrics.get("Strike"), errors="coerce")
@@ -901,6 +903,16 @@ def compute_derived_metrics(
             if "Net_GEX" in metrics.columns:
                 net_gex_above_spot = float(gex_series.where(above_mask).sum())
                 net_gex_below_spot = float(gex_series.where(below_mask).sum())
+
+                positive_gex = gex_series > 0
+                positive_above = strike_values.where(positive_gex & above_mask).dropna()
+                positive_below = strike_values.where(positive_gex & below_mask).dropna()
+
+                if not positive_above.empty:
+                    gamma_box_high = float(positive_above.min())
+
+                if not positive_below.empty:
+                    gamma_box_low = float(positive_below.max())
 
             if "Net_DEX" in metrics.columns:
                 net_dex_above_spot = float(dex_series.where(above_mask).sum())
@@ -936,6 +948,10 @@ def compute_derived_metrics(
         metrics.attrs["net_dex_above_spot"] = net_dex_above_spot
     if net_dex_below_spot is not None:
         metrics.attrs["net_dex_below_spot"] = net_dex_below_spot
+    if gamma_box_high is not None:
+        metrics.attrs["gamma_box_high"] = gamma_box_high
+    if gamma_box_low is not None:
+        metrics.attrs["gamma_box_low"] = gamma_box_low
 
     market_state = classify_market_state(
         net_gex_above_spot,
