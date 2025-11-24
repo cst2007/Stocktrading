@@ -889,6 +889,32 @@ def compute_derived_metrics(
     net_dex_below_spot: float | None = None
     gamma_box_high: float | None = None
     gamma_box_low: float | None = None
+    breakout_up: bool | None = None
+    breakout_down: bool | None = None
+    vex_dir_box_high: int | None = None
+    vex_dir_box_low: int | None = None
+    tex_dir_box_high: int | None = None
+    tex_dir_box_low: int | None = None
+
+    def _value_at_strike(series: pd.Series | None, strike: float | None) -> float | None:
+        if series is None or strike is None:
+            return None
+
+        try:
+            strike_value = float(strike)
+        except (TypeError, ValueError):
+            return None
+
+        strike_series = pd.to_numeric(metrics.get("Strike"), errors="coerce")
+        mask = strike_series == strike_value
+        if not mask.any():
+            return None
+
+        values = pd.to_numeric(series.where(mask), errors="coerce").dropna()
+        if values.empty:
+            return None
+
+        return float(values.iloc[0])
 
     if spot_price is not None and pd.notna(spot_price) and not metrics.empty:
         strike_values = pd.to_numeric(metrics.get("Strike"), errors="coerce")
@@ -950,8 +976,38 @@ def compute_derived_metrics(
         metrics.attrs["net_dex_below_spot"] = net_dex_below_spot
     if gamma_box_high is not None:
         metrics.attrs["gamma_box_high"] = gamma_box_high
+        dgex_high = _value_at_strike(metrics.get("dGEX/dSpot"), gamma_box_high)
+        breakout_up = dgex_high > 0 if dgex_high is not None else None
+        if breakout_up is not None:
+            metrics.attrs["gamma_box_breakout_up"] = breakout_up
+
+        call_vex_high = _value_at_strike(metrics.get("Call VEX"), gamma_box_high)
+        put_vex_high = _value_at_strike(metrics.get("Put VEX"), gamma_box_high)
+        if call_vex_high is not None or put_vex_high is not None:
+            vex_dir_box_high = _sign((call_vex_high or 0) + (put_vex_high or 0))
+            metrics.attrs["vex_dir_box_high"] = vex_dir_box_high
+
+        net_tex_high = _value_at_strike(metrics.get("Net_TEX"), gamma_box_high)
+        if net_tex_high is not None:
+            tex_dir_box_high = _sign(net_tex_high)
+            metrics.attrs["tex_dir_box_high"] = tex_dir_box_high
     if gamma_box_low is not None:
         metrics.attrs["gamma_box_low"] = gamma_box_low
+        dgex_low = _value_at_strike(metrics.get("dGEX/dSpot"), gamma_box_low)
+        breakout_down = dgex_low < 0 if dgex_low is not None else None
+        if breakout_down is not None:
+            metrics.attrs["gamma_box_breakout_down"] = breakout_down
+
+        call_vex_low = _value_at_strike(metrics.get("Call VEX"), gamma_box_low)
+        put_vex_low = _value_at_strike(metrics.get("Put VEX"), gamma_box_low)
+        if call_vex_low is not None or put_vex_low is not None:
+            vex_dir_box_low = _sign((call_vex_low or 0) + (put_vex_low or 0))
+            metrics.attrs["vex_dir_box_low"] = vex_dir_box_low
+
+        net_tex_low = _value_at_strike(metrics.get("Net_TEX"), gamma_box_low)
+        if net_tex_low is not None:
+            tex_dir_box_low = _sign(net_tex_low)
+            metrics.attrs["tex_dir_box_low"] = tex_dir_box_low
 
     market_state = classify_market_state(
         net_gex_above_spot,
