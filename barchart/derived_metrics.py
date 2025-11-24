@@ -55,6 +55,7 @@ DERIVED_CSV_HEADER = [
     "Rel_Dist",
     "Top5_Regime_Energy_Bias",
     "Market_State",
+    "Market_State_Description",
 ]
 
 TOTAL_SUM_COLUMNS = {
@@ -82,6 +83,85 @@ __all__ = [
     "compute_derived_metrics",
     "MarketState",
 ]
+
+
+MARKET_STATE_DESCRIPTIONS: dict[str, str] = {
+    "Best Bullish (Long Adam)": (
+        "Plain English: Market wants to go up. Dips get bought instantly. Very stable. "
+        "Behavior: Slow grind up, shallow pullbacks, strong buy pressure. "
+        "Adam: Best long setup of all."
+    ),
+    "Dip-Acceleration → Magnet Up (Conditional Long Adam)": (
+        "Plain English: Dips fall faster than normal but bounce harder. "
+        "Behavior: Quick flush → strong bounce → drift upward. "
+        "Adam: Long only if the dip holds a key level."
+    ),
+    "Upside Stall (No Adam)": (
+        "Plain English: Market tries to go up but keeps hitting invisible ceiling. "
+        "Behavior: Slow, choppy grind with fadeable rips. "
+        "Adam: Not safe — too slow, lacks momentum."
+    ),
+    "Low-Volatility Stall (Avoid Adam)": (
+        "Plain English: Price goes nowhere. It's stuck in glue. "
+        "Behavior: Small movements, chop, no trend. "
+        "Adam: Avoid. No energy."
+    ),
+    "Support + Weak Down Magnet (Weak Long Scalp)": (
+        "Plain English: There’s some support below, but market still leans downward. "
+        "Behavior: Small bounces, but overall drifting down. "
+        "Adam: Weak long scalp only — not a strong trend."
+    ),
+    "Very Bearish (Strong Short Adam)": (
+        "Plain English: Market naturally wants to fall. Rallies fail fast. "
+        "Behavior: Slide → bounce → deeper slide → breakdown. "
+        "Adam: Excellent short setup."
+    ),
+    "Fade Rises (No Adam)": (
+        "Plain English: Every pop gets sold. "
+        "Behavior: Slow, controlled grind down. "
+        "Adam: No — too controlled for momentum."
+    ),
+    "Pop → Slam Down (Short Adam)": (
+        "Plain English: Market pops a bit, traps buyers, then slams down hard. "
+        "Behavior: Quick move up → immediate reversal → big drop. "
+        "Adam: Very good short setup."
+    ),
+    "Bullish Explosion (Fast Long Adam)": (
+        "Plain English: Dealers are forced to buy on the way up. Explosive upside. "
+        "Behavior: Fast upside breakout, vertical candles. "
+        "Adam: Great for fast long entries."
+    ),
+    "Volatility Whipsaw (Avoid Adam)": (
+        "Plain English: Both up and down moves accelerate → chaos. "
+        "Behavior: Random violent swings. "
+        "Adam: Avoid — unpredictable."
+    ),
+    "Uptrend + Brake (No Adam)": (
+        "Plain English: Market goes up, but slowly and with hesitation. "
+        "Behavior: Choppy, grindy up-move. "
+        "Adam: No — too slow for momentum."
+    ),
+    "Short-Squeeze Blowout (Not Adam)": (
+        "Plain English: Market explodes upward unpredictably. Too wild. "
+        "Behavior: Violent vertical spikes. "
+        "Adam: Avoid — impossible to place a safe stop."
+    ),
+    "Volatility Box (Avoid)": (
+        "Plain English: Market is wild and directionless. Both up and down moves "
+        "accelerate. Behavior: Whipsaw → fake breakout → reverse → fake breakout "
+        "again. Adam: Do NOT trade here."
+    ),
+    "Dream Bullish (Perfect Long Adam)": (
+        "Plain English: Everything is aligned for a smooth, stable uptrend. "
+        "Behavior: Dip → bounce → grind up for hours. "
+        "Adam: The single most reliable long setup."
+    ),
+    "Negative–Negative Same Strike (Perfect Short Adam)": (
+        "Plain English: There is no support and exposure pulls price straight down. "
+        "Behavior: Pull → overshoot → failed base → continuation. "
+        "Adam: One of the best short entries possible."
+    ),
+}
 
 
 @dataclass
@@ -709,6 +789,7 @@ def compute_derived_metrics(
     metrics.attrs["iv_direction"] = direction_value
 
     metrics["Market_State"] = ""
+    metrics["Market_State_Description"] = ""
 
     if net_gex_above_spot is not None:
         metrics.attrs["net_gex_above_spot"] = net_gex_above_spot
@@ -726,6 +807,10 @@ def compute_derived_metrics(
         net_dex_below_spot,
     )
     metrics.attrs["market_state"] = market_state.scenario
+    metrics.attrs["market_state_description"] = MARKET_STATE_DESCRIPTIONS.get(
+        market_state.scenario or "",
+        "",
+    )
     metrics.attrs["market_state_components"] = {
         "GEX_location": market_state.gex_location,
         "GEX_sign": market_state.gex_sign,
@@ -802,6 +887,11 @@ def compute_derived_metrics(
             state_row["Strike"] = "Market_State"
             if "Market_State" in state_row:
                 state_row["Market_State"] = market_state.scenario
+            if "Market_State_Description" in state_row:
+                state_row["Market_State_Description"] = metrics.attrs.get(
+                    "market_state_description",
+                    "",
+                )
             summary_rows.append(state_row)
 
         if summary_rows:

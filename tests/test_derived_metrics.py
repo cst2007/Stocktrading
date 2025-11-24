@@ -449,9 +449,18 @@ def test_market_state_row_included_with_spx_columns_dropped():
     )
 
     assert "Market_State" in metrics.columns
+    assert "Market_State_Description" in metrics.columns
     state_row = metrics.loc[metrics["Strike"] == "Market_State", "Market_State"]
     assert not state_row.empty
     assert state_row.iloc[0] == "Dream Bullish (Perfect Long Adam)"
+
+    description_row = metrics.loc[
+        metrics["Strike"] == "Market_State", "Market_State_Description"
+    ]
+    assert not description_row.empty
+    assert description_row.iloc[0].startswith(
+        "Plain English: Everything is aligned for a smooth, stable uptrend."
+    )
 
 
 def test_put_vex_columns_populated_in_spx_mode():
