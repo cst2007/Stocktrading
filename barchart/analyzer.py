@@ -85,7 +85,7 @@ def _dealer_bias(call_ratio: float | None, put_ratio: float | None, iv_direction
 
 
 def _compute_top5_detail(summary: pd.DataFrame, spot_price: float | None) -> Dict[str, object]:
-    """Generate the Top 5 Detail payload from the per-strike summary."""
+    """Generate the Top 10 Detail payload from the per-strike summary."""
 
     def _to_float(value: object) -> float | None:
         try:
@@ -169,7 +169,7 @@ def _compute_top5_detail(summary: pd.DataFrame, spot_price: float | None) -> Dic
     oi_sum = call_oi + put_oi
     activity_score = volume_sum.where(volume_sum > 0, oi_sum).astype(float)
 
-    top_indices = activity_score.nlargest(min(5, len(summary))).index
+    top_indices = activity_score.nlargest(min(10, len(summary))).index
 
     detail_rows: List[Dict[str, object]] = []
     for idx in top_indices:

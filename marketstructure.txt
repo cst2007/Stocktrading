@@ -1,7 +1,7 @@
-Top 5 Detail
-============
+Top 10 Detail
+=============
 
-This section documents the end-to-end logic for populating the "Top 5 Detail" block that feeds the trading model. The process is divided into four stages: extract, classify, prioritize, and output.
+This section documents the end-to-end logic for populating the "Top 5 Detail" block that feeds the trading model. The process now starts with the top ten strikes (while keeping the legacy "Top5" naming in the output schema) and is divided into four stages: extract, classify, prioritize, and output.
 
 ⭐ STAGE 1 — EXTRACT
 Input Fields (per strike)
@@ -26,21 +26,21 @@ Activity_Score =
         Call_OI + Put_OI
 ```
 
-Selection — Top 5
+Selection — Top 10
 - Sort all strikes by `Activity_Score` in descending order.
-- `Top5_Strikes` are the first five strikes in the sorted list.
+- `Top10_Strikes` are the first ten strikes in the sorted list.
 
 Output of Stage 1
 ```
-Top5 = [
+Top10 = [
     {Strike, Energy_Score, Regime, Dealer_Bias, Distance_To_Spot},
-    ... 5 total records ...
+    ... 10 total records ...
 ]
 ```
 
 ⭐ STAGE 2 — CLASSIFY
 
-For each of the five strikes, assign a classification tag using the following logic:
+For each of the top ten strikes (or fewer if less data is available), assign a classification tag using the following logic:
 
 1. **Fade Zone**
    - `Energy_Score == "High"`
@@ -70,7 +70,7 @@ For each of the five strikes, assign a classification tag using the following lo
 
 Output of Stage 2
 ```
-Top5_Classified = [
+Top10_Classified = [
     {Strike, Classification, Energy_Score, Regime, Dealer_Bias, Distance_To_Spot},
     ...
 ]
@@ -78,7 +78,7 @@ Top5_Classified = [
 
 ⭐ STAGE 3 — PRIORITIZE
 
-From `Top5_Classified`, pick the primary levels and magnet targets.
+From `Top10_Classified`, pick the primary levels and magnet targets.
 
 1. **Primary Fade Level**
    - Strikes where `Classification == "Fade_Zone"`.
@@ -113,7 +113,7 @@ Write the final result block in the following structure, using `null` when no qu
   "Nearest_Magnet": <strike>,
   "Secondary_Magnet": <strike or null>,
 
-  "Top5_Detail": [
+  "Top5_Detail": [  # legacy field name; contains up to 10 strikes
       {
         "Strike": ...,
         "Classification": ...,
