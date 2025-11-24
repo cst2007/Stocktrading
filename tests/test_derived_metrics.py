@@ -346,6 +346,7 @@ def test_above_below_spot_summaries_appended_after_totals():
         "Net_GEX_Below_Spot",
         "Net_DEX_Above_Spot",
         "Net_DEX_Below_Spot",
+        "Market_State",
     ]
 
     gex_above = metrics.loc[metrics["Strike"] == "Net_GEX_Above_Spot", "Net_GEX"].iloc[0]
@@ -422,6 +423,35 @@ def test_columns_can_be_dropped_from_output():
     for column in exclusions:
         assert column not in metrics.columns
     assert "Net_GEX" in metrics.columns
+
+
+def test_market_state_row_included_with_spx_columns_dropped():
+    df = _build_sample_frame()
+    exclusions = {
+        "Energy_Score",
+        "Regime",
+        "Dealer_Bias",
+        "IV_Direction",
+        "Rel_Dist",
+        "Top5_Regime_Energy_Bias",
+        "Call_IV",
+        "Put_IV",
+        "Median_IVxOI",
+    }
+
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+        iv_direction="up",
+        drop_columns=exclusions,
+        include_totals_row=True,
+    )
+
+    assert "Market_State" in metrics.columns
+    state_row = metrics.loc[metrics["Strike"] == "Market_State", "Market_State"]
+    assert not state_row.empty
+    assert state_row.iloc[0] == "Dream Bullish (Perfect Long Adam)"
 
 
 def test_put_vex_columns_populated_in_spx_mode():

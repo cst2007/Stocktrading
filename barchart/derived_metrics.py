@@ -54,6 +54,7 @@ DERIVED_CSV_HEADER = [
     "IV_Direction",
     "Rel_Dist",
     "Top5_Regime_Energy_Bias",
+    "Market_State",
 ]
 
 TOTAL_SUM_COLUMNS = {
@@ -707,6 +708,8 @@ def compute_derived_metrics(
     metrics.attrs["median_ivxoi"] = median_ivxoi
     metrics.attrs["iv_direction"] = direction_value
 
+    metrics["Market_State"] = ""
+
     if net_gex_above_spot is not None:
         metrics.attrs["net_gex_above_spot"] = net_gex_above_spot
     if net_gex_below_spot is not None:
@@ -793,6 +796,13 @@ def compute_derived_metrics(
             summary_rows.append(
                 _summary_row("Net_DEX_Below_Spot", "Net_DEX", net_dex_below_spot)
             )
+
+        if market_state.scenario:
+            state_row = {col: "" for col in result.columns}
+            state_row["Strike"] = "Market_State"
+            if "Market_State" in state_row:
+                state_row["Market_State"] = market_state.scenario
+            summary_rows.append(state_row)
 
         if summary_rows:
             result = pd.concat([result, pd.DataFrame(summary_rows)], ignore_index=True)
