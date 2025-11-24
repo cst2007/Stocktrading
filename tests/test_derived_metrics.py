@@ -346,7 +346,6 @@ def test_above_below_spot_summaries_appended_after_totals():
         "Net_GEX_Below_Spot",
         "Net_DEX_Above_Spot",
         "Net_DEX_Below_Spot",
-        "Market_State",
     ]
 
     gex_above = metrics.loc[metrics["Strike"] == "Net_GEX_Above_Spot", "Net_GEX"].iloc[0]
@@ -425,7 +424,7 @@ def test_columns_can_be_dropped_from_output():
     assert "Net_GEX" in metrics.columns
 
 
-def test_market_state_row_included_with_spx_columns_dropped():
+def test_market_state_summary_row_appended_when_requested():
     df = _build_sample_frame()
     exclusions = {
         "Energy_Score",
@@ -446,21 +445,15 @@ def test_market_state_row_included_with_spx_columns_dropped():
         iv_direction="up",
         drop_columns=exclusions,
         include_totals_row=True,
+        append_market_state_row=True,
     )
 
-    assert "Market_State" in metrics.columns
-    assert "Market_State_Description" in metrics.columns
-    state_row = metrics.loc[metrics["Strike"] == "Market_State", "Market_State"]
-    assert not state_row.empty
-    assert state_row.iloc[0] == "Dream Bullish (Perfect Long Adam)"
+    assert "Market_State" not in metrics.columns
+    assert "Market_State_Description" not in metrics.columns
 
-    description_row = metrics.loc[
-        metrics["Strike"] == "Market_State", "Market_State_Description"
-    ]
-    assert not description_row.empty
-    assert description_row.iloc[0].startswith(
-        "Plain English: Everything is aligned for a smooth, stable uptrend."
-    )
+    summary_tail = metrics.iloc[-1]["Strike"]
+    assert summary_tail.startswith("Market State: Dream Bullish (Perfect Long Adam)")
+    assert "smooth, stable uptrend" in summary_tail
 
 
 def test_put_vex_columns_populated_in_spx_mode():
