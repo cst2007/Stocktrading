@@ -287,6 +287,9 @@ def process_pair(
         market_state_description=market_state_description,
         market_state_components=market_state_components,
         market_state_playbook=market_state_playbook,
+        derived_df=derived_df,
+        ticker=pair.ticker,
+        spot_price=spot_price,
         vex_direction=vex_direction,
         tex_direction=tex_direction,
         gamma_box_high=gamma_box_high,
@@ -414,6 +417,9 @@ def _write_market_structure_file(
     market_state_description: str | None,
     market_state_components: Dict[str, object] | None,
     market_state_playbook: Mapping[str, object] | None = None,
+    derived_df: pd.DataFrame | None = None,
+    ticker: str | None = None,
+    spot_price: float | None = None,
     vex_direction: int | None = None,
     tex_direction: int | None = None,
     gamma_box_high: float | None = None,
@@ -508,6 +514,52 @@ def _write_market_structure_file(
             neutral=neutral,
         ) + ")"
 
+    def _calculate_magnets(
+        df: pd.DataFrame | None,
+        *,
+        spot: float | None,
+        ticker_symbol: str | None,
+    ) -> tuple[float, float | None, int | None, float] | None:
+        if df is None or spot is None:
+            return None
+        if "Strike" not in df.columns or "Net_GEX" not in df.columns:
+            return None
+
+        strikes = pd.to_numeric(df["Strike"], errors="coerce")
+        net_gex = pd.to_numeric(df["Net_GEX"], errors="coerce")
+        data = pd.DataFrame({"strike": strikes, "gex": net_gex}).dropna()
+        if data.empty:
+            return None
+
+        magnitudes = data["gex"].abs()
+        percentile_threshold = float(magnitudes.quantile(0.9)) if not magnitudes.empty else 0.0
+        absolute_floor = 20_000_000.0 if (ticker_symbol or "").upper().startswith("SPX") else 0.0
+        threshold = max(percentile_threshold, absolute_floor)
+
+        candidates = data.loc[magnitudes >= threshold].copy()
+        if candidates.empty:
+            return None
+
+        candidates["distance"] = (candidates["strike"] - float(spot)).abs()
+        candidates = candidates.sort_values(["distance", "strike"])
+
+        primary_strike = float(candidates.iloc[0]["strike"])
+        secondary_strike = float(candidates.iloc[1]["strike"]) if len(candidates) > 1 else None
+
+        nearest_idx = data.assign(distance=(data["strike"] - float(spot)).abs())["distance"].idxmin()
+        direction_value = data.loc[nearest_idx, "gex"]
+        direction_sign: int | None
+        if pd.isna(direction_value):
+            direction_sign = None
+        elif direction_value > 0:
+            direction_sign = 1
+        elif direction_value < 0:
+            direction_sign = -1
+        else:
+            direction_sign = 0
+
+        return primary_strike, secondary_strike, direction_sign, threshold
+
     if vex_direction is not None:
         lines.append("")
         lines.append("VEX Direction:")
@@ -537,6 +589,11 @@ def _write_market_structure_file(
         )
 
     execution_lines: List[str] = []
+    magnets = _calculate_magnets(
+        derived_df,
+        spot=spot_price,
+        ticker_symbol=ticker,
+    )
     if gamma_box_high is not None:
         execution_lines.append(f"- Gamma_Box_High: {_format_strike(gamma_box_high)}")
         if breakout_up is not None:
@@ -581,6 +638,26 @@ def _write_market_structure_file(
         )
         if tex_low_line:
             execution_lines.append(tex_low_line)
+
+    if magnets:
+        primary, secondary, direction_sign, threshold = magnets
+        execution_lines.append("- Magnets:")
+        execution_lines.append(f"  Primary: {_format_strike(primary)}")
+        if secondary is not None:
+            execution_lines.append(f"  Secondary: {_format_strike(secondary)}")
+        if direction_sign is not None:
+            execution_lines.append(
+                "  Direction: "
+                + f"{direction_sign} ("
+                + _interpret(
+                    direction_sign,
+                    positive="Market pulled UP",
+                    negative="Market pulled DOWN",
+                    neutral="Balanced",
+                )
+                + ")"
+            )
+        execution_lines.append(f"  Threshold: {threshold:,.0f}")
 
     if execution_lines:
         lines.append("")
