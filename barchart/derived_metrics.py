@@ -27,6 +27,12 @@ DERIVED_CSV_HEADER = [
     "Call_IVxOI_Rank",
     "Put_IVxOI_Rank",
     "Strike",
+    "Energy_Score",
+    "Regime",
+    "Dealer_Bias",
+    "IV_Direction",
+    "Rel_Dist",
+    "Top5_Regime_Energy_Bias",
     "Call_Vanna",
     "Call_Vanna_Highlight",
     "Put_Vanna",
@@ -49,12 +55,6 @@ DERIVED_CSV_HEADER = [
     "Put_Vanna_Ratio",
     "Vanna_GEX_Total",
     "DateTime",
-    "Energy_Score",
-    "Regime",
-    "Dealer_Bias",
-    "IV_Direction",
-    "Rel_Dist",
-    "Top5_Regime_Energy_Bias",
 ]
 
 TOTAL_SUM_COLUMNS = {
