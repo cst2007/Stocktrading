@@ -63,6 +63,10 @@ def _build_sample_frame() -> pd.DataFrame:
     return frame
 
 
+def _label_column(metrics: pd.DataFrame) -> str:
+    return next(col for col in metrics.columns if col != "Strike")
+
+
 def test_ratios_and_regime_classification():
     df = _build_sample_frame()
     metrics = compute_derived_metrics(
@@ -310,8 +314,10 @@ def test_totals_row_is_appended_when_requested():
         include_totals_row=True,
     )
 
-    totals_row = metrics.loc[metrics["Strike"] == "Total"].iloc[0]
-    assert totals_row["Strike"] == "Total"
+    label_col = _label_column(metrics)
+    totals_row = metrics.loc[metrics[label_col] == "Total"].iloc[0]
+    assert totals_row[label_col] == "Total"
+    assert totals_row["Strike"] == ""
     assert totals_row["Call_Vanna_Highlight"] == ""
     assert totals_row["Put_Vanna_Highlight"] == ""
     assert totals_row["Net_GEX_Highlight"] == ""
@@ -338,8 +344,9 @@ def test_above_below_spot_summaries_appended_after_totals():
         include_totals_row=True,
     )
 
-    total_idx = metrics.index[metrics["Strike"] == "Total"][0]
-    summary_order = metrics.iloc[total_idx:]["Strike"].tolist()
+    label_col = _label_column(metrics)
+    total_idx = metrics.index[metrics[label_col] == "Total"][0]
+    summary_order = metrics.iloc[total_idx:][label_col].tolist()
     assert summary_order == [
         "Total",
         "Net_GEX_Above_Spot",
@@ -348,10 +355,10 @@ def test_above_below_spot_summaries_appended_after_totals():
         "Net_DEX_Below_Spot",
     ]
 
-    gex_above = metrics.loc[metrics["Strike"] == "Net_GEX_Above_Spot", "Net_GEX"].iloc[0]
-    gex_below = metrics.loc[metrics["Strike"] == "Net_GEX_Below_Spot", "Net_GEX"].iloc[0]
-    dex_above = metrics.loc[metrics["Strike"] == "Net_DEX_Above_Spot", "Net_DEX"].iloc[0]
-    dex_below = metrics.loc[metrics["Strike"] == "Net_DEX_Below_Spot", "Net_DEX"].iloc[0]
+    gex_above = metrics.loc[metrics[label_col] == "Net_GEX_Above_Spot", "Net_GEX"].iloc[0]
+    gex_below = metrics.loc[metrics[label_col] == "Net_GEX_Below_Spot", "Net_GEX"].iloc[0]
+    dex_above = metrics.loc[metrics[label_col] == "Net_DEX_Above_Spot", "Net_DEX"].iloc[0]
+    dex_below = metrics.loc[metrics[label_col] == "Net_DEX_Below_Spot", "Net_DEX"].iloc[0]
 
     assert gex_above == pytest.approx(50.0)
     assert gex_below == pytest.approx(40.0)
@@ -451,7 +458,8 @@ def test_market_state_summary_row_appended_when_requested():
     assert "Market_State" not in metrics.columns
     assert "Market_State_Description" not in metrics.columns
 
-    summary_tail = metrics.iloc[-1]["Strike"]
+    label_col = _label_column(metrics)
+    summary_tail = metrics.iloc[-1][label_col]
     assert summary_tail.startswith("Market State: Dream Bullish (Perfect Long Adam)")
     assert "smooth, stable uptrend" in summary_tail
 
@@ -502,7 +510,8 @@ def test_put_vex_columns_populated_in_spx_mode():
         include_put_vex=True,
     )
 
-    assert metrics.columns[1:11].tolist() == [
+    assert metrics.columns[1:12].tolist() == [
+        "Summary",
         "Put VEX",
         "Put VEX Rank",
         "Call VEX",

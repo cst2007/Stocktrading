@@ -821,25 +821,35 @@ def compute_derived_metrics(
     if drop_set:
         metrics = metrics.drop(columns=sorted(drop_set))
 
+    summary_column = "Summary"
+    if summary_column not in metrics.columns:
+        metrics = metrics.copy()
+        metrics[summary_column] = ""
+
     column_order = (
-        ["Strike"]
+        ["Strike", summary_column]
         + [
             column
             for column in DERIVED_CSV_HEADER
             if column != "Strike" and column in metrics.columns
         ]
         if "Strike" in metrics.columns
-        else [column for column in DERIVED_CSV_HEADER if column in metrics.columns]
+        else [summary_column]
+        + [column for column in DERIVED_CSV_HEADER if column in metrics.columns]
     )
     result = metrics.loc[:, column_order].copy()
+
+    label_column = next((col for col in result.columns if col != "Strike"), None)
 
     has_totals = False
     if include_totals_row and not result.empty:
         base_rows = result.copy()
-        totals_row: dict[str, object] = {}
+        label_target = label_column or "Strike"
+        totals_row: dict[str, object] = {column: "" for column in result.columns}
+        totals_row[label_target] = "Total"
+
         for column in result.columns:
-            if column == "Strike":
-                totals_row[column] = "Total"
+            if column == "Strike" or column == label_target:
                 continue
             if column in TOTAL_SUM_COLUMNS:
                 numeric_series = pd.to_numeric(base_rows[column], errors="coerce")
@@ -855,7 +865,8 @@ def compute_derived_metrics(
 
         def _summary_row(label: str, column: str, value: float | None) -> dict[str, object]:
             row = {col: "" for col in result.columns}
-            row["Strike"] = label
+            label_target = label_column or "Strike"
+            row[label_target] = label
             if value is not None and column in row:
                 row[column] = round(float(value), 2)
             return row
@@ -885,7 +896,8 @@ def compute_derived_metrics(
                 state_summary += f" — {description}"
 
             state_row = {col: "" for col in result.columns}
-            state_row["Strike"] = state_summary
+            label_target = label_column or "Strike"
+            state_row[label_target] = state_summary
             summary_rows.append(state_row)
 
         if summary_rows:
