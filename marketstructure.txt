@@ -1,0 +1,54 @@
+Top 5 Detail
+============
+{
+  "Primary_Fade_Level": null,
+  "Primary_Long_Drift_Level": null,
+  "Primary_Short_Drift_Level": null,
+  "Flip_Zone": null,
+
+  "Nearest_Magnet": 101.0,
+  "Secondary_Magnet": 102.0,
+
+  "Top5_Detail": [
+      {
+        "Strike": 100.0,
+        "Classification": "Unclassified",
+        "Regime": "Gamma Pin",
+        "Energy_Score": "Low",
+        "Dealer_Bias": "Neutral",
+        "Distance_To_Spot": -2.0
+      },
+      {
+        "Strike": 101.0,
+        "Classification": "Fade_Zone, Short_Drift_Zone, Magnet",
+        "Regime": "Vol Drift Down",
+        "Energy_Score": "High",
+        "Dealer_Bias": "Bearish Fade",
+        "Distance_To_Spot": -1.0
+      },
+      {
+        "Strike": 102.0,
+        "Classification": "Magnet",
+        "Regime": "Post-Earnings Vanna Rally",
+        "Energy_Score": "High",
+        "Dealer_Bias": "Bullish Drift",
+        "Distance_To_Spot": 0.0
+      },
+      {
+        "Strike": 103.0,
+        "Classification": "Unclassified",
+        "Regime": "Vol Drift Down",
+        "Energy_Score": "Low",
+        "Dealer_Bias": "Bearish Fade",
+        "Distance_To_Spot": 1.0
+      },
+      {
+        "Strike": 104.0,
+        "Classification": "Unclassified",
+        "Regime": "Transition Zone",
+        "Energy_Score": "Low",
+        "Dealer_Bias": "Neutral",
+        "Distance_To_Spot": 2.0
+      }
+  ]
+}
