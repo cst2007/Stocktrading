@@ -330,6 +330,8 @@ def test_totals_row_is_appended_when_requested():
     data_only = metrics.loc[data_only_mask]
     expected_net_gex_total = pd.to_numeric(data_only["Net_GEX"], errors="coerce").sum()
     assert totals_row["Net_GEX"] == pytest.approx(round(expected_net_gex_total, 2))
+    expected_net_vex_total = pd.to_numeric(data_only["Net VEX"], errors="coerce").sum()
+    assert totals_row["Net VEX"] == pytest.approx(round(expected_net_vex_total, 2))
     expected_net_tex_total = pd.to_numeric(data_only["Net_TEX"], errors="coerce").sum()
     assert totals_row["Net_TEX"] == pytest.approx(round(expected_net_tex_total, 2))
 
@@ -509,12 +511,13 @@ def test_put_vex_columns_populated_by_default():
         iv_direction="up",
     )
 
-    assert metrics.columns[1:12].tolist() == [
+    assert metrics.columns[1:13].tolist() == [
         "Summary",
         "Put VEX",
         "Put VEX Rank",
         "Call VEX",
         "Call VEX Rank",
+        "Net VEX",
         "Net_DEX",
         "DEX_highlight",
         "Net_GEX",
@@ -530,6 +533,11 @@ def test_put_vex_columns_populated_by_default():
     call_vex_value = metrics.loc[metrics["Strike"] == 100, "Call VEX"].iloc[0]
     expected_call_vex = df.loc[0, "call_vanna"] * df.loc[0, "call_iv"] * df.loc[0, "call_open_interest"]
     assert call_vex_value == pytest.approx(round(expected_call_vex, 2))
+
+    net_vex_value = metrics.loc[metrics["Strike"] == 100, "Net VEX"].iloc[0]
+    assert net_vex_value == pytest.approx(
+        round(expected_put_vex + expected_call_vex, 2)
+    )
 
     ranked_rows = metrics.loc[metrics["Put VEX Rank"] != ""]
     assert len(ranked_rows) == 7

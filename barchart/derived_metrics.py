@@ -13,6 +13,7 @@ DERIVED_CSV_HEADER = [
     "Put VEX Rank",
     "Call VEX",
     "Call VEX Rank",
+    "Net VEX",
     "Net_DEX",
     "DEX_highlight",
     "Net_GEX",
@@ -66,6 +67,7 @@ TOTAL_SUM_COLUMNS = {
     "Call_DEX",
     "Put_DEX",
     "Net_DEX",
+    "Net VEX",
     "Call_TEX",
     "Put_TEX",
     "Net_TEX",
@@ -705,6 +707,10 @@ def compute_derived_metrics(
         metrics.insert(2, "Call VEX", call_vex_values)
         metrics.insert(3, "Call VEX Rank", "")
 
+        net_vex_values = (call_vex_values + put_vex_values).round(2)
+
+        metrics.insert(4, "Net VEX", net_vex_values)
+
         negative_put_vex = put_vex_values[put_vex_values < 0]
         if not negative_put_vex.empty:
             ranked_indices = negative_put_vex.nsmallest(
@@ -963,6 +969,11 @@ def compute_derived_metrics(
         )
         metrics.attrs["total_net_TEX"] = net_tex_total
         metrics.attrs["tex_direction"] = _sign(net_tex_total)
+    if "Net VEX" in metrics.columns:
+        net_vex_total = float(
+            pd.to_numeric(metrics["Net VEX"], errors="coerce").fillna(0).sum()
+        )
+        metrics.attrs["total_net_VEX"] = net_vex_total
     metrics.attrs["median_ivxoi"] = median_ivxoi
     metrics.attrs["iv_direction"] = direction_value
 
