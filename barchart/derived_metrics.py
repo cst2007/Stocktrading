@@ -479,7 +479,7 @@ def compute_derived_metrics(
     iv_direction: str = "down",
     drop_columns: Sequence[str] | None = None,
     include_totals_row: bool = False,
-    include_put_vex: bool = False,
+    include_put_vex: bool = True,
     append_market_state_row: bool = False,
 ) -> pd.DataFrame:
     """Return the Phase 1 derived exposure metrics for ``unified_df``."""

@@ -464,7 +464,7 @@ def test_market_state_summary_row_appended_when_requested():
     assert "smooth, stable uptrend" in summary_tail
 
 
-def test_put_vex_columns_populated_in_spx_mode():
+def test_put_vex_columns_populated_by_default():
     df = _build_sample_frame()
     extra_row = {
         "Strike": 106,
@@ -507,7 +507,6 @@ def test_put_vex_columns_populated_in_spx_mode():
         calculation_time=datetime.now(timezone.utc),
         spot_price=102.0,
         iv_direction="up",
-        include_put_vex=True,
     )
 
     assert metrics.columns[1:12].tolist() == [
