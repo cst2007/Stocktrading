@@ -686,7 +686,7 @@ def _write_market_structure_file(
 
     if top5_detail:
         lines.append("")
-        lines.append("Top 5 Detail:")
+        lines.append("Top 10 Detail:")
 
         lines.append("Levels:")
         lines.append(_format_level("Primary_Fade_Level", top5_detail.get("Primary_Fade_Level")))
@@ -707,7 +707,7 @@ def _write_market_structure_file(
         detail_rows = top5_detail.get("Top5_Detail") if isinstance(top5_detail, Mapping) else None
         if detail_rows:
             lines.append("")
-            lines.append("Top 5 Strikes:")
+            lines.append("Top 10 Strikes:")
             for row in detail_rows:
                 classification = row.get("Classification") or "Unclassified"
                 regime = row.get("Regime") or "Unknown"

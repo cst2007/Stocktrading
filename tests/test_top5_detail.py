@@ -43,6 +43,6 @@ def test_compute_top5_detail_prioritization():
     assert detail["Flip_Zone"] == 90
     assert detail["Nearest_Magnet"] == 90
     assert detail["Secondary_Magnet"] == 105
-    assert len(detail["Top5_Detail"]) == 5
+    assert len(detail["Top5_Detail"]) == len(index)
     classifications = {row["Strike"]: row["Classification"] for row in detail["Top5_Detail"]}
     assert "Short_Drift_Zone" in classifications[115]

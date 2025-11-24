@@ -103,7 +103,7 @@ def test_write_market_structure_file(tmp_path: Path) -> None:
     assert "Levels (max 10): 4200" in content
     assert "Direction: 1 (Market pulled UP)" in content
     assert "Threshold: 29,300,000" in content
-    assert "Top 5 Detail:" in content
+    assert "Top 10 Detail:" in content
     assert "Primary_Fade_Level: 4400" in content
     assert "Primary_Short_Drift_Level: 4200" in content
     assert "Nearest_Magnet: 4300" in content
