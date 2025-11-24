@@ -253,7 +253,6 @@ def process_pair(
         iv_direction=iv_direction,
         drop_columns=spx_exclusions,
         include_totals_row=True,
-        include_put_vex=exclude_spx_columns,
         append_market_state_row=is_spx_option,
     )
     market_state = derived_df.attrs.get("market_state")
