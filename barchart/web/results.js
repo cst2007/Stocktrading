@@ -18,6 +18,11 @@ const derivedElement = document.getElementById('result-derived');
 const sideElement = document.getElementById('result-side');
 const reactivityElement = document.getElementById('result-reactivity');
 const insightJsonElement = document.getElementById('result-insight-json');
+const marketStructureSection = document.getElementById('result-market-structure');
+const marketStructureLabelElement = document.getElementById('result-market-structure-label');
+const marketStructureContentElement = document.getElementById(
+  'result-market-structure-content',
+);
 const movedListElement = document.getElementById('result-moved-list');
 const insightSection = document.getElementById('result-insight');
 const insightModelElement = document.getElementById('result-insight-model');
@@ -106,6 +111,45 @@ function normalizeTicker(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+async function renderMarketStructure(result) {
+  marketStructureSection.hidden = true;
+  marketStructureLabelElement.textContent = 'Market structure';
+  marketStructureContentElement.textContent = '';
+
+  const filePath = result.market_structure_txt;
+  const fileUrl = result.market_structure_txt_url;
+
+  if (!filePath) {
+    return;
+  }
+
+  marketStructureLabelElement.textContent = filePath;
+
+  if (!fileUrl) {
+    marketStructureContentElement.textContent =
+      'Market structure file is unavailable to preview.';
+    marketStructureSection.hidden = false;
+    return;
+  }
+
+  try {
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`Server responded with status ${response.status}`);
+    }
+    const text = await response.text();
+    marketStructureContentElement.textContent = text.trim() || '(File is empty)';
+  } catch (error) {
+    const fallback =
+      error instanceof Error && error.message
+        ? error.message
+        : 'Unknown error while loading the market structure file.';
+    marketStructureContentElement.textContent = `Unable to load market structure file: ${fallback}`;
+  }
+
+  marketStructureSection.hidden = false;
+}
+
 async function renderOverview(data) {
   const result = data.result || {};
   overviewSection.hidden = false;
@@ -168,6 +212,8 @@ async function renderOverview(data) {
     insightPromptElement.textContent = '';
     insightResponseElement.textContent = '';
   }
+
+  await renderMarketStructure(result);
 
   movedListElement.innerHTML = '';
   let movedFiles = [];

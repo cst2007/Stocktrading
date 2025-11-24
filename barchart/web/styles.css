@@ -349,6 +349,11 @@ body {
   font-size: 1.1rem;
 }
 
+.result-market-structure h3 {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 1.1rem;
+}
+
 .file-preview {
   background-color: #f7fafc;
   border: 1px solid #e4e7eb;
