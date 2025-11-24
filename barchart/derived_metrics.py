@@ -83,6 +83,16 @@ __all__ = [
 ]
 
 
+def _sign(value: float | None) -> int | None:
+    if value is None or pd.isna(value):
+        return None
+    if value > 0:
+        return 1
+    if value < 0:
+        return -1
+    return 0
+
+
 MARKET_STATE_DESCRIPTIONS: dict[str, str] = {
     "Best Bullish (Long Adam)": (
         "Plain English: Market wants to go up. Dips get bought instantly. Very stable. "
@@ -897,6 +907,24 @@ def compute_derived_metrics(
                 net_dex_below_spot = float(dex_series.where(below_mask).sum())
 
     metrics.attrs["total_net_DEX"] = float(metrics["Net_DEX"].fillna(0).sum())
+
+    call_vex_total = None
+    put_vex_total = None
+    if "Call VEX" in metrics.columns and "Put VEX" in metrics.columns:
+        call_vex_total = float(
+            pd.to_numeric(metrics["Call VEX"], errors="coerce").fillna(0).sum()
+        )
+        put_vex_total = float(
+            pd.to_numeric(metrics["Put VEX"], errors="coerce").fillna(0).sum()
+        )
+        metrics.attrs["vex_direction"] = _sign(call_vex_total + put_vex_total)
+
+    if "Net_TEX" in metrics.columns:
+        net_tex_total = float(
+            pd.to_numeric(metrics["Net_TEX"], errors="coerce").fillna(0).sum()
+        )
+        metrics.attrs["total_net_TEX"] = net_tex_total
+        metrics.attrs["tex_direction"] = _sign(net_tex_total)
     metrics.attrs["median_ivxoi"] = median_ivxoi
     metrics.attrs["iv_direction"] = direction_value
 
