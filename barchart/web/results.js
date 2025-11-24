@@ -21,7 +21,6 @@ const marketStructureNextElement = document.getElementById('result-market-struct
 const marketStructureEquationElement = document.getElementById('result-market-structure-equation');
 const combinedElement = document.getElementById('result-combined');
 const derivedElement = document.getElementById('result-derived');
-const coreElement = document.getElementById('result-core');
 const sideElement = document.getElementById('result-side');
 const reactivityElement = document.getElementById('result-reactivity');
 const insightJsonElement = document.getElementById('result-insight-json');
@@ -333,7 +332,6 @@ function renderOverview(data) {
 
   renderFileLink(combinedElement, result.combined_csv, result.combined_csv_url);
   renderFileLink(derivedElement, result.derived_csv, result.derived_csv_url);
-  renderFileLink(coreElement, result.core_csv, result.core_csv_url);
   renderFileLink(sideElement, result.side_csv, result.side_csv_url);
   renderFileLink(reactivityElement, result.reactivity_csv, result.reactivity_csv_url);
   renderFileLink(
