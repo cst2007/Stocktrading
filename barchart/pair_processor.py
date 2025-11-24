@@ -261,6 +261,8 @@ def process_pair(
     market_state_playbook = derived_df.attrs.get("market_state_playbook")
     vex_direction = derived_df.attrs.get("vex_direction")
     tex_direction = derived_df.attrs.get("tex_direction")
+    gamma_box_high = derived_df.attrs.get("gamma_box_high")
+    gamma_box_low = derived_df.attrs.get("gamma_box_low")
     safe_ticker = pair.ticker.replace("/", "-") or "unknown"
     safe_expiry = (
         pair.expiry.replace("/", "-") if pair.expiry != "UNKNOWN" else "unknown"
@@ -281,6 +283,8 @@ def process_pair(
         market_state_playbook=market_state_playbook,
         vex_direction=vex_direction,
         tex_direction=tex_direction,
+        gamma_box_high=gamma_box_high,
+        gamma_box_low=gamma_box_low,
     )
 
     insights_dir = derived_dir / "insights"
@@ -400,13 +404,16 @@ def _write_market_structure_file(
     market_state_playbook: Mapping[str, object] | None = None,
     vex_direction: int | None = None,
     tex_direction: int | None = None,
+    gamma_box_high: float | None = None,
+    gamma_box_low: float | None = None,
 ) -> Path | None:
     """Persist the market structure summary next to the derived CSV.
 
     The returned path points to a ``*.txt`` file containing the market state
     name, its plain-English description, the individual classification
-    components, and the relevant playbook guidance. If ``market_state`` is
-    falsy, no file is written and ``None`` is returned.
+    components, the relevant playbook guidance, and the Gamma Box execution
+    levels when available. If ``market_state`` is falsy, no file is written and
+    ``None`` is returned.
     """
 
     if not market_state:
@@ -454,6 +461,17 @@ def _write_market_structure_file(
             return negative
         return neutral
 
+    def _format_strike(value: float | int | str) -> str:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return str(value)
+
+        if number.is_integer():
+            return str(int(number))
+
+        return f"{number:.2f}".rstrip("0").rstrip(".")
+
     if vex_direction is not None:
         lines.append("")
         lines.append("VEX Direction:")
@@ -481,6 +499,17 @@ def _write_market_structure_file(
                 neutral="No theta-based pressure",
             )
         )
+
+    execution_lines: List[str] = []
+    if gamma_box_high is not None:
+        execution_lines.append(f"- Gamma_Box_High: {_format_strike(gamma_box_high)}")
+    if gamma_box_low is not None:
+        execution_lines.append(f"- Gamma_Box_Low: {_format_strike(gamma_box_low)}")
+
+    if execution_lines:
+        lines.append("")
+        lines.append("Execution:")
+        lines.extend(execution_lines)
 
     target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return target_path

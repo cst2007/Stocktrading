@@ -21,6 +21,8 @@ def test_write_market_structure_file(tmp_path: Path) -> None:
         market_state_playbook=playbook,
         vex_direction=1,
         tex_direction=-1,
+        gamma_box_high=4350,
+        gamma_box_low=4200,
     )
 
     assert path is not None
@@ -41,6 +43,9 @@ def test_write_market_structure_file(tmp_path: Path) -> None:
     assert "TEX Direction:" in content
     assert "- TEX_dir: -1" in content
     assert "Downward pressure" in content
+    assert "Execution:" in content
+    assert "- Gamma_Box_High: 4350" in content
+    assert "- Gamma_Box_Low: 4200" in content
 
 
 def test_write_market_structure_file_skips_when_absent(tmp_path: Path) -> None:
