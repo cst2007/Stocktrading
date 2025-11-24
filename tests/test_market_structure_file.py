@@ -72,8 +72,9 @@ def test_write_market_structure_file(tmp_path: Path) -> None:
     assert "Slow downside drift" in content
     assert "Magnets:" in content
     assert "Primary: 4200" in content
+    assert "Levels (max 10): 4200" in content
     assert "Direction: 1 (Market pulled UP)" in content
-    assert "Threshold: 29,000,000" in content
+    assert "Threshold: 29,300,000" in content
 
 
 def test_write_market_structure_file_skips_when_absent(tmp_path: Path) -> None:
