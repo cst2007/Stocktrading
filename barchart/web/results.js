@@ -9,6 +9,8 @@ const pairElement = document.getElementById('result-pair');
 const timestampElement = document.getElementById('result-timestamp');
 const spotElement = document.getElementById('result-spot');
 const ivDirectionElement = document.getElementById('result-iv-direction');
+const marketStateElement = document.getElementById('result-market-state');
+const marketDescriptionElement = document.getElementById('result-market-description');
 const combinedElement = document.getElementById('result-combined');
 const derivedElement = document.getElementById('result-derived');
 const coreElement = document.getElementById('result-core');
@@ -95,6 +97,11 @@ function renderOverview(data) {
     unknown: 'Unknown',
   };
   ivDirectionElement.textContent = directionLabels[directionValue] || 'Unknown';
+
+  const marketState = result.market_state || '';
+  marketStateElement.textContent = marketState || 'Unavailable';
+  marketDescriptionElement.textContent =
+    result.market_state_description || (marketState ? 'No description available.' : 'Unavailable');
 
   renderFileLink(combinedElement, result.combined_csv, result.combined_csv_url);
   renderFileLink(derivedElement, result.derived_csv, result.derived_csv_url);

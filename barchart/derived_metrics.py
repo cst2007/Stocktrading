@@ -788,9 +788,6 @@ def compute_derived_metrics(
     metrics.attrs["median_ivxoi"] = median_ivxoi
     metrics.attrs["iv_direction"] = direction_value
 
-    metrics["Market_State"] = ""
-    metrics["Market_State_Description"] = ""
-
     if net_gex_above_spot is not None:
         metrics.attrs["net_gex_above_spot"] = net_gex_above_spot
     if net_gex_below_spot is not None:
@@ -820,6 +817,12 @@ def compute_derived_metrics(
         "DEX_zero": market_state.dex_zero,
         "Regime_Flip": market_state.regime_flip,
     }
+
+    metrics["Market_State"] = market_state.scenario or ""
+    metrics["Market_State_Description"] = metrics.attrs.get(
+        "market_state_description",
+        "",
+    )
 
     drop_set = {column for column in (drop_columns or []) if column in metrics.columns}
     if drop_set:

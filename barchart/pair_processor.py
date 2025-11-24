@@ -253,6 +253,9 @@ def process_pair(
         include_totals_row=True,
         include_put_vex=exclude_spx_columns,
     )
+    market_state = derived_df.attrs.get("market_state")
+    market_state_description = derived_df.attrs.get("market_state_description")
+    market_state_components = derived_df.attrs.get("market_state_components")
     safe_ticker = pair.ticker.replace("/", "-") or "unknown"
     safe_expiry = (
         pair.expiry.replace("/", "-") if pair.expiry != "UNKNOWN" else "unknown"
@@ -306,6 +309,9 @@ def process_pair(
         "summaries": summaries,
         "insights": insights_info,
         "iv_direction": iv_direction,
+        "market_state": market_state,
+        "market_state_description": market_state_description,
+        "market_state_components": market_state_components,
     }
 
 
