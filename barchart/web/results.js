@@ -170,7 +170,7 @@ const MARKET_STRUCTURE_ENTRIES = [
     plainEnglish:
       'Market is wild and directionless. Both up and down moves accelerate.',
     expectedBehavior: 'Whipsaw → fake breakout → reverse → fake breakout again.',
-    nextStep: 'Do NOT trade here.',
+    nextStep: 'Adam: Do NOT trade here.',
     equation: 'Avoid = True',
   },
   {
@@ -178,8 +178,8 @@ const MARKET_STRUCTURE_ENTRIES = [
     displayName: 'Dream Bullish (Perfect Long Adam)',
     plainEnglish: 'Everything is aligned for a smooth, stable uptrend.',
     expectedBehavior: 'Dip → bounce → grind up for hours.',
-    nextStep: 'The single most reliable long setup.',
-    equation: 'Adam: Best long entry',
+    nextStep: 'Adam: The single most reliable long setup.',
+    equation: 'Adam: The single most reliable long setup.',
   },
   {
     names: [
@@ -189,8 +189,8 @@ const MARKET_STRUCTURE_ENTRIES = [
     displayName: 'Super-Magnet Down (Perfect Short Adam)',
     plainEnglish: 'There is no support. Gamma + DEX combine to pull price straight down.',
     expectedBehavior: 'Pull → overshoot → failed base → continuation.',
-    nextStep: 'One of the best short entries possible.',
-    equation: 'Adam: Best short entry',
+    nextStep: 'Adam: One of the best short entries possible.',
+    equation: 'Adam: One of the best short entries possible.',
   },
 ];
 
