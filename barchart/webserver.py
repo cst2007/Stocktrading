@@ -361,6 +361,9 @@ class PairProcessingRequestHandler(SimpleHTTPRequestHandler):
         enriched["core_csv_url"] = _build_url(result.get("core_csv"))
         enriched["side_csv_url"] = _build_url(result.get("side_csv"))
         enriched["reactivity_csv_url"] = _build_url(result.get("reactivity_csv"))
+        enriched["market_structure_txt_url"] = _build_url(
+            result.get("market_structure_txt")
+        )
 
         moved_files = result.get("moved_files")
         moved_entries = []

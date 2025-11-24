@@ -19,6 +19,11 @@ const marketStructurePlainElement = document.getElementById('result-market-struc
 const marketStructureBehaviorElement = document.getElementById('result-market-structure-behavior');
 const marketStructureNextElement = document.getElementById('result-market-structure-next');
 const marketStructureEquationElement = document.getElementById('result-market-structure-equation');
+const marketStructureFileContainer = document.getElementById('result-market-structure-file');
+const marketStructureFileLinkElement = document.getElementById('result-market-structure-file-link');
+const marketStructureFileContentElement = document.getElementById(
+  'result-market-structure-file-content',
+);
 const combinedElement = document.getElementById('result-combined');
 const derivedElement = document.getElementById('result-derived');
 const sideElement = document.getElementById('result-side');
@@ -312,7 +317,40 @@ function renderMarketStructure(ticker, marketState) {
   marketStructureEquationElement.textContent = structure.equation;
 }
 
-function renderOverview(data) {
+async function renderMarketStructureFile(filePath, fileUrl) {
+  marketStructureFileLinkElement.textContent = '';
+  marketStructureFileContentElement.textContent = '';
+
+  if (!filePath) {
+    marketStructureFileContainer.hidden = true;
+    return;
+  }
+
+  marketStructureFileContainer.hidden = false;
+  renderFileLink(marketStructureFileLinkElement, filePath, fileUrl);
+
+  if (!fileUrl) {
+    marketStructureFileContentElement.textContent = 'Preview unavailable (no file URL).';
+    return;
+  }
+
+  marketStructureFileContentElement.textContent = 'Loading preview…';
+
+  try {
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const text = await response.text();
+    const trimmed = text.trim();
+    marketStructureFileContentElement.textContent = trimmed || 'File is empty.';
+  } catch (error) {
+    console.error('Unable to load market_structure.txt', error);
+    marketStructureFileContentElement.textContent = 'Unable to load file contents.';
+  }
+}
+
+async function renderOverview(data) {
   const result = data.result || {};
   overviewSection.hidden = false;
   pairElement.textContent = data.pairDisplay || 'Unknown pair';
@@ -347,6 +385,10 @@ function renderOverview(data) {
   }
 
   renderMarketStructure(tickerValue, marketState);
+  await renderMarketStructureFile(
+    result.market_structure_txt,
+    result.market_structure_txt_url,
+  );
 
   renderFileLink(combinedElement, result.combined_csv, result.combined_csv_url);
   renderFileLink(derivedElement, result.derived_csv, result.derived_csv_url);
@@ -519,7 +561,7 @@ async function loadResult() {
         throw new Error('Stored results were invalid.');
       }
       setStatus('Processing run loaded successfully.');
-      renderOverview(data);
+      await renderOverview(data);
       renderTabs(data);
       return;
     } catch (error) {
@@ -551,7 +593,7 @@ async function loadResult() {
     sessionStorage.setItem('latestProcessResult', JSON.stringify(data));
 
     setStatus('Processing run loaded successfully.');
-    renderOverview(data);
+    await renderOverview(data);
     renderTabs(data);
   } catch (error) {
     console.error(error);
