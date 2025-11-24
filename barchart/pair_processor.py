@@ -259,6 +259,8 @@ def process_pair(
     market_state_description = derived_df.attrs.get("market_state_description")
     market_state_components = derived_df.attrs.get("market_state_components")
     market_state_playbook = derived_df.attrs.get("market_state_playbook")
+    vex_direction = derived_df.attrs.get("vex_direction")
+    tex_direction = derived_df.attrs.get("tex_direction")
     safe_ticker = pair.ticker.replace("/", "-") or "unknown"
     safe_expiry = (
         pair.expiry.replace("/", "-") if pair.expiry != "UNKNOWN" else "unknown"
@@ -277,6 +279,8 @@ def process_pair(
         market_state_description=market_state_description,
         market_state_components=market_state_components,
         market_state_playbook=market_state_playbook,
+        vex_direction=vex_direction,
+        tex_direction=tex_direction,
     )
 
     insights_dir = derived_dir / "insights"
@@ -394,6 +398,8 @@ def _write_market_structure_file(
     market_state_description: str | None,
     market_state_components: Dict[str, object] | None,
     market_state_playbook: Mapping[str, object] | None = None,
+    vex_direction: int | None = None,
+    tex_direction: int | None = None,
 ) -> Path | None:
     """Persist the market structure summary next to the derived CSV.
 
@@ -438,6 +444,43 @@ def _write_market_structure_file(
 
         if avoid:
             lines.append(f"Avoid: {avoid}")
+
+    def _interpret(direction: int | None, *, positive: str, negative: str, neutral: str) -> str:
+        if direction is None:
+            return "Unavailable"
+        if direction > 0:
+            return positive
+        if direction < 0:
+            return negative
+        return neutral
+
+    if vex_direction is not None:
+        lines.append("")
+        lines.append("VEX Direction:")
+        lines.append(f"- VEX_dir: {vex_direction}")
+        lines.append(
+            "- Interpretation: "
+            + _interpret(
+                vex_direction,
+                positive="Upside fuel",
+                negative="Downside fuel",
+                neutral="No vol-based fuel",
+            )
+        )
+
+    if tex_direction is not None:
+        lines.append("")
+        lines.append("TEX Direction:")
+        lines.append(f"- TEX_dir: {tex_direction}")
+        lines.append(
+            "- Interpretation: "
+            + _interpret(
+                tex_direction,
+                positive="Upward pressure",
+                negative="Downward pressure",
+                neutral="No theta-based pressure",
+            )
+        )
 
     target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return target_path

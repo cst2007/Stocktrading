@@ -19,6 +19,8 @@ def test_write_market_structure_file(tmp_path: Path) -> None:
         market_state_description="Gamma flipped with bearish pressure",
         market_state_components={"GEX_location": "OTM", "DEX_zero": 123.45},
         market_state_playbook=playbook,
+        vex_direction=1,
+        tex_direction=-1,
     )
 
     assert path is not None
@@ -33,6 +35,12 @@ def test_write_market_structure_file(tmp_path: Path) -> None:
     assert "Useful Metrics:" in content
     assert "- GEX curvature (dGEX/dSpot)" in content
     assert "Avoid: Shorts. Overthinking. This is clean." in content
+    assert "VEX Direction:" in content
+    assert "- VEX_dir: 1" in content
+    assert "Upside fuel" in content
+    assert "TEX Direction:" in content
+    assert "- TEX_dir: -1" in content
+    assert "Downward pressure" in content
 
 
 def test_write_market_structure_file_skips_when_absent(tmp_path: Path) -> None:
