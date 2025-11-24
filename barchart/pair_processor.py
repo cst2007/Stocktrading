@@ -271,6 +271,13 @@ def process_pair(
     formatted_derived_df = _format_derived_numeric_values(derived_df)
     formatted_derived_df.to_csv(derived_path, index=False)
 
+    market_structure_path = _write_market_structure_file(
+        derived_path,
+        market_state=market_state,
+        market_state_description=market_state_description,
+        market_state_components=market_state_components,
+    )
+
     insights_dir = derived_dir / "insights"
     insights_info: Dict[str, object] | None = None
     try:
@@ -309,6 +316,7 @@ def process_pair(
         "combined_csv": str(combined_path),
         "moved_files": [str(path) for path in moved_files],
         "derived_csv": str(derived_path),
+        "market_structure_txt": str(market_structure_path) if market_structure_path else None,
         "summaries": summaries,
         "insights": insights_info,
         "iv_direction": iv_direction,
@@ -376,6 +384,41 @@ def _format_derived_numeric_values(df: pd.DataFrame) -> pd.DataFrame:
         formatted[column] = formatted[column].apply(_format_value)
 
     return formatted
+
+
+def _write_market_structure_file(
+    derived_path: Path,
+    *,
+    market_state: str | None,
+    market_state_description: str | None,
+    market_state_components: Dict[str, object] | None,
+) -> Path | None:
+    """Persist the market structure summary next to the derived CSV.
+
+    The returned path points to a ``*.txt`` file containing the market state
+    name, its plain-English description, and the individual classification
+    components. If ``market_state`` is falsy, no file is written and ``None`` is
+    returned.
+    """
+
+    if not market_state:
+        return None
+
+    target_path = derived_path.with_name(f"{derived_path.stem}_market_structure.txt")
+
+    lines = [f"Market State: {market_state}"]
+
+    if market_state_description:
+        lines.append(f"Description: {market_state_description}")
+
+    if market_state_components:
+        lines.append("")
+        lines.append("Components:")
+        for key, value in sorted(market_state_components.items()):
+            lines.append(f"- {key}: {value}")
+
+    target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return target_path
 
 
 __all__ = ["OptionFilePair", "discover_pairs", "process_pair"]
