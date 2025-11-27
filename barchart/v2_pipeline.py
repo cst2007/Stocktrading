@@ -233,6 +233,180 @@ def _compute_scores(df: pd.DataFrame, d_gex_d_spot: float) -> pd.DataFrame:
 
     df["Behavior_Tag"] = _assign_behavior_tags(df, abs_norm, weights)
 
+    df = _compute_side_exposure_scores(df)
+
+    return df
+
+
+def _compute_side_exposure_scores(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    if "Market_Structure" not in df.columns:
+        df["Market_Structure"] = "Transition"
+
+    df["Net_GEX_norm_abs"] = _normalize(df["Net_GEX"]).abs()
+    df["dGEX_dSpot_norm"] = _normalize(df["dGEX_dSpot"])
+    df["Call_OI_norm"] = _normalize(df["Call_OI"])
+    df["Put_OI_norm"] = _normalize(df["Put_OI"])
+    df["Call_Theta_norm_abs"] = _normalize(df["Call_Theta_Exp"]).abs()
+    df["Put_Theta_norm_abs"] = _normalize(df["Put_Theta_Exp"]).abs()
+    df["Net_Vanna_norm"] = _normalize(df["Net_Vanna"])
+
+    Structure_Bonus_CC = {
+        "Upside Stall": 0.30,
+        "Low-Volatility Stall": 0.30,
+        "Fade Rises": 0.30,
+        "Uptrend With Brake": 0.30,
+        "Very Bearish": 0.30,
+        "Pop → Slam Down": 0.30,
+        "Super-Magnet Down": 0.30,
+        "Volatile Downtrend": 0.30,
+        "Fake Up → Drop": 0.30,
+        "Transition": 0.15,
+        "Gamma Pin (Above Spot)": 0.15,
+        "Bullish Explosion": -0.30,
+        "Short-Squeeze Blowout": -0.30,
+        "Best Bullish": -0.30,
+        "Dream Bullish": -0.30,
+    }
+
+    Structure_Bonus_CSP = {
+        "Best Bullish": 0.30,
+        "Dip Acceleration → Magnet Up": 0.30,
+        "Support + Weak Down Magnet": 0.30,
+        "Dream Bullish": 0.30,
+        "Transition": 0.15,
+        "Gamma Pin (Below Spot)": 0.15,
+        "Tug-of-War": 0.15,
+        "Very Bearish": -0.30,
+        "Super-Magnet Down": -0.30,
+        "Pop → Slam Down": -0.30,
+        "Volatile Downtrend": -0.30,
+        "Fake Up → Drop": -0.30,
+        "Special Case C": -0.30,
+    }
+
+    a1 = 0.30
+    a2 = 0.20
+    a3 = 0.25
+    a4 = 0.15
+    a5 = 0.10
+    a6 = 0.10
+
+    b1 = 0.30
+    b2 = 0.20
+    b3 = 0.25
+    b4 = 0.15
+    b5 = 0.10
+    b6 = 0.20
+
+    def _score_row(row: pd.Series) -> pd.Series:
+        Strike = float(row.get("Strike", 0.0))
+        Spot = float(row.get("Spot", 0.0))
+        Net_GEX = float(row.get("Net_GEX", 0.0))
+        dGEX_dSpot = float(row.get("dGEX_dSpot", 0.0))
+        Call_OI = float(row.get("Call_OI", 0.0))
+        Put_OI = float(row.get("Put_OI", 0.0))
+        Call_Theta_Exp = float(row.get("Call_Theta_Exp", 0.0))
+        Put_Theta_Exp = float(row.get("Put_Theta_Exp", 0.0))
+        Net_Vanna = float(row.get("Net_Vanna", 0.0))
+        Market_Structure = str(row.get("Market_Structure", ""))
+        Behavior_Tag = str(row.get("Behavior_Tag", ""))
+        Distance_to_Spot = Strike - Spot
+
+        Net_GEX_norm_abs = float(row.get("Net_GEX_norm_abs", 0.0))
+        dGEX_dSpot_norm = float(row.get("dGEX_dSpot_norm", 0.0))
+        Call_OI_norm = float(row.get("Call_OI_norm", 0.0))
+        Put_OI_norm = float(row.get("Put_OI_norm", 0.0))
+        Call_Theta_norm_abs = float(row.get("Call_Theta_norm_abs", 0.0))
+        Put_Theta_norm_abs = float(row.get("Put_Theta_norm_abs", 0.0))
+        Net_Vanna_norm = float(row.get("Net_Vanna_norm", 0.0))
+
+        bonus_cc = Structure_Bonus_CC.get(Market_Structure, 0.0)
+        bonus_csp = Structure_Bonus_CSP.get(Market_Structure, 0.0)
+
+        is_OTM_call_candidate = Strike > Spot
+        is_OTM_put_candidate = Strike < Spot
+
+        cc_behavior_ok = Behavior_Tag in ["Fade_Zone", "Pin_Zone", "Support_Zone"]
+        cc_behavior_bad = Behavior_Tag in ["Continuation_Up", "Melt_Up_Risk", "Chaos"]
+
+        csp_behavior_ok = Behavior_Tag in ["Support_Zone", "Fade_Zone", "Pin_Zone"]
+        csp_behavior_bad = Behavior_Tag in ["Crash_Risk", "Continuation_Down", "Chaos"]
+
+        cc_gamma_ok = (Net_GEX > 0) and (dGEX_dSpot > 0)
+        csp_gamma_ok = (Net_GEX > 0) and (dGEX_dSpot > 0)
+
+        cc_vanna_bad = Net_Vanna_norm > 0.8
+        csp_vanna_bad = Net_Vanna_norm < -0.8
+
+        Is_CC_Candidate = (
+            is_OTM_call_candidate
+            and cc_behavior_ok
+            and (not cc_behavior_bad)
+            and cc_gamma_ok
+            and (not cc_vanna_bad)
+        )
+        Is_CSP_Candidate = (
+            is_OTM_put_candidate
+            and csp_behavior_ok
+            and (not csp_behavior_bad)
+            and csp_gamma_ok
+            and (not csp_vanna_bad)
+        )
+
+        if Is_CC_Candidate:
+            CoveredCall_Score = (
+                a1 * Net_GEX_norm_abs
+                + a2 * max(dGEX_dSpot_norm, 0)
+                + a3 * Call_Theta_norm_abs
+                + a4 * Call_OI_norm
+                + a5 * bonus_cc
+                - a6 * max(Net_Vanna_norm, 0)
+            )
+        else:
+            CoveredCall_Score = 0.0
+
+        if Is_CSP_Candidate:
+            crash_penalty = 1.0 if Behavior_Tag in ["Crash_Risk", "Continuation_Down", "Special Case C"] else 0.0
+
+            CSP_Score = (
+                b1 * Net_GEX_norm_abs
+                + b2 * max(dGEX_dSpot_norm, 0)
+                + b3 * Put_Theta_norm_abs
+                + b4 * Put_OI_norm
+                + b5 * bonus_csp
+                - b6 * crash_penalty
+            )
+        else:
+            CSP_Score = 0.0
+
+        return pd.Series(
+            {
+                "Strike": Strike,
+                "CoveredCall_Score": CoveredCall_Score,
+                "CSP_Score": CSP_Score,
+                "Is_CC_Candidate": Is_CC_Candidate,
+                "Is_CSP_Candidate": Is_CSP_Candidate,
+                "Structure_Bonus_CC": bonus_cc,
+                "Structure_Bonus_CSP": bonus_csp,
+                "Behavior_Tag": Behavior_Tag,
+                "Market_Structure": Market_Structure,
+                "Distance_to_Spot": Distance_to_Spot,
+                "Call_OI": Call_OI,
+                "Put_OI": Put_OI,
+                "Call_Theta_Exp": Call_Theta_Exp,
+                "Put_Theta_Exp": Put_Theta_Exp,
+                "Net_Vanna": Net_Vanna,
+                "Net_GEX": Net_GEX,
+                "dGEX_dSpot": dGEX_dSpot,
+            }
+        )
+
+    scored = df.apply(_score_row, axis=1)
+    for column in scored.columns:
+        if column not in df or column in {"Behavior_Tag", "Market_Structure"}:
+            df[column] = scored[column]
+
     return df
 
 
@@ -291,6 +465,8 @@ def run_exposure_pipeline(
 
     per_strike = _pivot_per_strike(merged)
     exposures = _compute_exposures(per_strike, config)
+    exposures["Spot"] = config.spot
+    exposures["Distance_to_Spot"] = exposures["Strike"] - config.spot
     d_gex_d_spot = _compute_marginal_gamma(per_strike, config)
     scored = _compute_scores(exposures, d_gex_d_spot)
 
@@ -322,6 +498,13 @@ def run_exposure_pipeline(
         "Net_GEX",
         "Total_GEX",
         "dGEX_dSpot",
+        "CoveredCall_Score",
+        "CSP_Score",
+        "Is_CC_Candidate",
+        "Is_CSP_Candidate",
+        "Structure_Bonus_CC",
+        "Structure_Bonus_CSP",
+        "Market_Structure",
     ]
 
     reactivity_columns = [
@@ -338,6 +521,13 @@ def run_exposure_pipeline(
         "ReactivityRank",
         "Is_High_Reactivity",
         "Behavior_Tag",
+        "CoveredCall_Score",
+        "CSP_Score",
+        "Is_CC_Candidate",
+        "Is_CSP_Candidate",
+        "Structure_Bonus_CC",
+        "Structure_Bonus_CSP",
+        "Market_Structure",
         "Distance_to_Spot",
     ]
 
