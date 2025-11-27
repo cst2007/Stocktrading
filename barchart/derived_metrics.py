@@ -20,11 +20,59 @@ DERIVED_CSV_HEADER = [
     "Net_GEX_Highlight",
     "dGEX/dSpot",
     "dGEX/dSpot Rank",
+    "Call_IVxOI",
+    "Put_IVxOI",
+    "IVxOI",
+    "IVxOI Rank",
+    "Call_IVxOI_Rank",
+    "Put_IVxOI_Rank",
     "Top5_Regime_Energy_Bias",
     "Energy_Score",
     "Regime",
     "Dealer_Bias",
-    "Bias",
+    "Strike",
+    "Rel_Dist",
+    "Call_Vanna",
+    "Call_Vanna_Rank",
+    "Put_Vanna",
+    "Put_Vanna_Rank",
+    "Net_Vanna",
+    "Call_GEX",
+    "Put_GEX",
+    "Call_DEX",
+    "Put_DEX",
+    "Call_TEX",
+    "Call_TEX_Highlight",
+    "Put_TEX",
+    "Put_TEX_Highlight",
+    "Net_TEX",
+    "TEX_highlight",
+    "Call_IV",
+    "Put_IV",
+    "Median_IVxOI",
+    "Call_Vanna_Ratio",
+    "Put_Vanna_Ratio",
+    "Vanna_GEX_Total",
+    "Summary",
+    "DateTime",
+]
+
+DERIVED_CSV_HEADER_TOP5_FIRST = [
+    "Put VEX",
+    "Put VEX Rank",
+    "Call VEX",
+    "Call VEX Rank",
+    "Net VEX",
+    "Net_DEX",
+    "DEX_highlight",
+    "Net_GEX",
+    "Net_GEX_Highlight",
+    "dGEX/dSpot",
+    "dGEX/dSpot Rank",
+    "Top5_Regime_Energy_Bias",
+    "Energy_Score",
+    "Regime",
+    "Dealer_Bias",
     "Call_IVxOI",
     "Put_IVxOI",
     "IVxOI",
@@ -1078,15 +1126,19 @@ def compute_derived_metrics(
         metrics = metrics.copy()
         metrics[summary_column] = ""
 
+    header_order = (
+        DERIVED_CSV_HEADER_TOP5_FIRST
+        if len(metrics.index) >= 8
+        else DERIVED_CSV_HEADER
+    )
+
     column_order = (
         ["Strike"]
         + [
-            column
-            for column in DERIVED_CSV_HEADER
-            if column != "Strike" and column in metrics.columns
+            column for column in header_order if column != "Strike" and column in metrics.columns
         ]
         if "Strike" in metrics.columns
-        else [column for column in DERIVED_CSV_HEADER if column in metrics.columns]
+        else [column for column in header_order if column in metrics.columns]
     )
     result = metrics.loc[:, column_order].copy()
 
