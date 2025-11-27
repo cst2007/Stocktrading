@@ -764,17 +764,15 @@ def compute_derived_metrics(
     )
 
     optional_candidate_columns = {
-        "CoveredCall_Score": None,
-        "CSP_Score": None,
-        "Is_CC_Candidate": None,
-        "Is_CSP_Candidate": None,
+        "CoveredCall_Score": 0.0,
+        "CSP_Score": 0.0,
+        "Is_CC_Candidate": False,
+        "Is_CSP_Candidate": False,
     }
 
-    for column in optional_candidate_columns:
+    for column, default_value in optional_candidate_columns.items():
         if column in unified_df.columns:
-            metrics[column] = unified_df[column]
-        else:
-            metrics[column] = optional_candidate_columns[column]
+            metrics[column] = unified_df[column].fillna(default_value)
 
     if include_put_vex:
         put_vex_values = (
