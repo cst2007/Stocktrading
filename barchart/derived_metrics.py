@@ -772,7 +772,13 @@ def compute_derived_metrics(
 
     for column, default_value in optional_candidate_columns.items():
         if column in unified_df.columns:
-            metrics[column] = unified_df[column].fillna(default_value)
+            filled = unified_df[column]
+            if filled.dtype == "object":
+                filled = filled.convert_dtypes()
+            filled = filled.fillna(default_value)
+            metrics[column] = filled
+        else:
+            metrics[column] = default_value
 
     if include_put_vex:
         put_vex_values = (

@@ -717,3 +717,46 @@ def test_invalid_direction_raises_error():
             spot_price=102.0,
             iv_direction="sideways",
         )
+
+
+def test_candidate_columns_present_with_defaults():
+    df = _build_sample_frame()
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+    )
+
+    optional_columns = {
+        "CoveredCall_Score": 0.0,
+        "CSP_Score": 0.0,
+        "Is_CC_Candidate": False,
+        "Is_CSP_Candidate": False,
+    }
+
+    for column, default_value in optional_columns.items():
+        assert column in metrics.columns
+        assert (metrics[column] == default_value).all()
+
+
+def test_candidate_columns_preserve_values_when_provided():
+    df = _build_sample_frame()
+    df["CoveredCall_Score"] = [1.25, None, 0.0, 0.0, 0.0, 0.0]
+    df["CSP_Score"] = [0.0, 2.5, None, 0.0, 0.0, 0.0]
+    df["Is_CC_Candidate"] = [True, None, False, False, False, False]
+    df["Is_CSP_Candidate"] = [False, True, None, False, False, False]
+
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+    )
+
+    assert metrics.loc[0, "CoveredCall_Score"] == 1.25
+    assert metrics.loc[1, "CoveredCall_Score"] == 0.0
+    assert metrics.loc[1, "CSP_Score"] == 2.5
+    assert metrics.loc[2, "CSP_Score"] == 0.0
+    assert bool(metrics.loc[0, "Is_CC_Candidate"]) is True
+    assert bool(metrics.loc[1, "Is_CC_Candidate"]) is False
+    assert bool(metrics.loc[1, "Is_CSP_Candidate"]) is True
+    assert bool(metrics.loc[2, "Is_CSP_Candidate"]) is False
