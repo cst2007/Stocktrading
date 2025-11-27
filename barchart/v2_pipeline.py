@@ -25,6 +25,7 @@ class ExposureOutputs:
     core_path: Path
     side_path: Path
     reactivity_path: Path
+    derived_path: Path
 
 
 # ---------------------------------------------------------------------------
@@ -556,20 +557,29 @@ def run_exposure_pipeline(
     core_dir = output_dir / "core"
     side_dir = output_dir / "details"
     signals_dir = output_dir / "signals"
+    derived_dir = output_dir / "derived"
     core_dir.mkdir(parents=True, exist_ok=True)
     side_dir.mkdir(parents=True, exist_ok=True)
     signals_dir.mkdir(parents=True, exist_ok=True)
+    derived_dir.mkdir(parents=True, exist_ok=True)
 
     suffix = f"{config.ticker}-exp-{config.expiry}.csv"
     core_path = core_dir / f"CORE_EXPOSURES-{suffix}"
     side_path = side_dir / f"SIDE_EXPOSURES-{suffix}"
     reactivity_path = signals_dir / f"REACTIVITY_MAP-{suffix}"
+    derived_path = derived_dir / f"DERIVED_EXPOSURES-{suffix}"
 
     scored[core_columns].to_csv(core_path, index=False)
     scored[side_columns].to_csv(side_path, index=False)
     scored[reactivity_columns].to_csv(reactivity_path, index=False)
+    scored[reactivity_columns].to_csv(derived_path, index=False)
 
-    return ExposureOutputs(core_path=core_path, side_path=side_path, reactivity_path=reactivity_path)
+    return ExposureOutputs(
+        core_path=core_path,
+        side_path=side_path,
+        reactivity_path=reactivity_path,
+        derived_path=derived_path,
+    )
 
 
 __all__ = [
