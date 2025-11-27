@@ -210,6 +210,7 @@ def process_pair(
             "core_csv": str(outputs.core_path),
             "side_csv": str(outputs.side_path),
             "reactivity_csv": str(outputs.reactivity_path),
+            "derived_csv": str(outputs.derived_path),
             "moved_files": [str(path) for path in moved_files],
             "iv_direction": iv_direction,
         }
