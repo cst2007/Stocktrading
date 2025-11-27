@@ -30,6 +30,10 @@ DERIVED_CSV_HEADER = [
     "Energy_Score",
     "Regime",
     "Dealer_Bias",
+    "CoveredCall_Score",
+    "CSP_Score",
+    "Is_CC_Candidate",
+    "Is_CSP_Candidate",
     "Strike",
     "Rel_Dist",
     "Call_Vanna",
@@ -73,6 +77,10 @@ DERIVED_CSV_HEADER_TOP5_FIRST = [
     "Energy_Score",
     "Regime",
     "Dealer_Bias",
+    "CoveredCall_Score",
+    "CSP_Score",
+    "Is_CC_Candidate",
+    "Is_CSP_Candidate",
     "Call_IVxOI",
     "Put_IVxOI",
     "IVxOI",
@@ -754,6 +762,19 @@ def compute_derived_metrics(
             "Put_IVxOI": unified_df["puts_oi_iv"].astype(float).round(1),
         }
     )
+
+    optional_candidate_columns = {
+        "CoveredCall_Score": None,
+        "CSP_Score": None,
+        "Is_CC_Candidate": None,
+        "Is_CSP_Candidate": None,
+    }
+
+    for column in optional_candidate_columns:
+        if column in unified_df.columns:
+            metrics[column] = unified_df[column]
+        else:
+            metrics[column] = optional_candidate_columns[column]
 
     if include_put_vex:
         put_vex_values = (
