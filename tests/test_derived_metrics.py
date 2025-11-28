@@ -273,11 +273,13 @@ def test_ivxoi_columns_positioned_and_ranked():
 
     columns = list(metrics.columns)
     dgex_rank_idx = columns.index("dGEX/dSpot Rank")
-    assert columns[dgex_rank_idx + 1 : dgex_rank_idx + 11] == [
+    assert columns[dgex_rank_idx + 1 : dgex_rank_idx + 13] == [
         "Top5_Regime_Energy_Bias",
         "Energy_Score",
         "Regime",
         "Dealer_Bias",
+        "reactivity_score",
+        "behavior_tag",
         "Call_IVxOI",
         "Put_IVxOI",
         "IVxOI",
@@ -760,3 +762,29 @@ def test_candidate_columns_preserve_values_when_provided():
     assert bool(metrics.loc[1, "Is_CC_Candidate"]) is False
     assert bool(metrics.loc[1, "Is_CSP_Candidate"]) is True
     assert bool(metrics.loc[2, "Is_CSP_Candidate"]) is False
+
+
+def test_reactivity_and_behavior_passthrough():
+    df = _build_sample_frame()
+    df["reactivity_score"] = [10, 20, 30, 40, 50, 60]
+    df["behavior_tag"] = ["calm", "choppy", "spiky", "drift", "fade", "rip"]
+
+    metrics = compute_derived_metrics(
+        df,
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+    )
+
+    assert "reactivity_score" in metrics.columns
+    assert "behavior_tag" in metrics.columns
+    assert metrics.loc[0, "reactivity_score"] == 10
+    assert metrics.loc[5, "behavior_tag"] == "rip"
+
+    metrics_no_columns = compute_derived_metrics(
+        _build_sample_frame(),
+        calculation_time=datetime.now(timezone.utc),
+        spot_price=102.0,
+    )
+
+    assert metrics_no_columns["reactivity_score"].isna().all()
+    assert (metrics_no_columns["behavior_tag"] == "").all()
