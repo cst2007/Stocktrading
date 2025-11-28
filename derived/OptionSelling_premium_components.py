@@ -22,11 +22,6 @@ def _normalize_abs(series: pd.Series) -> pd.Series:
     return _normalize(series).abs()
 
 
-def _normalize_minmax(series: pd.Series) -> pd.Series:
-    """Return a min–max normalized series with a small epsilon for stability."""
-    return (series - series.min()) / ((series.max() - series.min()) + EPSILON)
-
-
 def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     """Generate weighted premium components for option-selling strategies.
 
@@ -71,7 +66,12 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     df["Net_GEX_norm_abs"] = _normalize_abs(df["Net_GEX"])
     df["GEX_Component"] = 0.30 * df["Net_GEX_norm_abs"]
 
-    df["dGEX_dSpot_norm"] = _normalize_minmax(df["dGEX_dSpot_num"].astype(float))
+    dgex_series = df["dGEX_dSpot_num"].astype(float)
+    dgex_min = dgex_series.min()
+    dgex_max = dgex_series.max()
+    dgex_range = (dgex_max - dgex_min) + EPSILON
+
+    df["dGEX_dSpot_norm"] = (dgex_series - dgex_min) / dgex_range
     df["dGEX_Component"] = (
         0.20 * np.maximum(df["dGEX_dSpot_norm"], 0.0)
     ).astype(float)
