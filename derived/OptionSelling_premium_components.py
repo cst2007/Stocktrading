@@ -34,11 +34,6 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     The resulting dataframe includes the strike and four weighted components:
     ``CC_Theta_Component``, ``CC_OI_Component``, ``CSP_Theta_Component``, and
     ``CSP_OI_Component``.
-
-    Notes
-    -----
-    This function only returns a dataframe in memory; it does not write to disk.
-    Use :func:`save_premium_components` to persist results to a CSV file.
     """
 
     required_columns = {"Strike", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"}
@@ -70,29 +65,6 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     ]]
 
 
-def save_premium_components(df: pd.DataFrame, output_path: str) -> pd.DataFrame:
-    """Compute components from ``df`` and write them to ``output_path``.
-
-    Parameters
-    ----------
-    df:
-        Input dataframe with the required columns listed in
-        :func:`build_premium_components`.
-    output_path:
-        Destination CSV path. A new file will be created or an existing file
-        will be overwritten.
-
-    Returns
-    -------
-    pd.DataFrame
-        The computed component dataframe (also written to disk).
-    """
-
-    components = build_premium_components(df)
-    components.to_csv(output_path, index=False)
-    return components
-
-
 if __name__ == "__main__":
     # Example usage for quick manual verification.
     sample = pd.DataFrame(
@@ -105,9 +77,5 @@ if __name__ == "__main__":
         }
     )
 
-    components = save_premium_components(
-        sample,
-        output_path="OptionSelling_premium_components_example.csv",
-    )
-    print("Computed components written to OptionSelling_premium_components_example.csv")
+    components = build_premium_components(sample)
     print(components)
