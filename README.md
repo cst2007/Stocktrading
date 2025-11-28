@@ -132,6 +132,29 @@ Key options:
 - `--debug` / `--no-debug`: When debug mode is enabled (the default), only the first row of each CSV is processed and
   step-by-step calculation details are logged. Disable it to process full datasets.
 
+### Enabling debug exposure outputs (v2 pipeline)
+
+If you are calling the v2 exposure pipeline directly, you can ask it to emit a CSV with the
+normalized driver values, weighted reactivity components, and candidate scores used during
+scoring. Pass a directory via the `debug_dir` argument when invoking `run_exposure_pipeline`;
+the file will be written as `DEBUG_EXPOSURES-<ticker>-exp-<expiry>.csv` inside that folder.
+
+```python
+from pathlib import Path
+from barchart.v2_pipeline import ExposureRunConfig, run_exposure_pipeline
+
+config = ExposureRunConfig(ticker="SPX", expiry="2025-11-03", spot=5200, contract_multiplier=100)
+run_exposure_pipeline(
+    Path("./data/spx-options-exp-2025-11-03.csv"),
+    Path("./data/spx-greeks-exp-2025-11-03.csv"),
+    config,
+    output_dir=Path("./output"),
+    debug_dir=Path("./debug"),  # turn on debug output
+)
+```
+
+Omit `debug_dir` (or set it to `None`) to skip writing the extra debug CSV.
+
 When a directory is supplied, every CSV within it is processed and individual summary artifacts are
 written for each file.
 
