@@ -62,10 +62,15 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.copy()
 
+    # Clean and convert dGEX/dSpot values that may arrive as strings with commas
+    df["dGEX_dSpot_num"] = (
+        df["dGEX_dSpot"].astype(str).str.replace(",", "", regex=False).astype(float)
+    )
+
     df["Net_GEX_norm_abs"] = _normalize_abs(df["Net_GEX"])
     df["GEX_Component"] = 0.30 * df["Net_GEX_norm_abs"]
 
-    df["dGEX_dSpot_norm"] = _normalize_minmax(df["dGEX_dSpot"])
+    df["dGEX_dSpot_norm"] = _normalize_minmax(df["dGEX_dSpot_num"])
     df["dGEX_Component"] = 0.20 * np.maximum(df["dGEX_dSpot_norm"], 0.0)
 
     df["Call_Theta_norm_abs"] = _normalize_abs(df["Call_Theta"])
