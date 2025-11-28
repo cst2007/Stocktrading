@@ -196,11 +196,13 @@ def process_pair(
             spot=float(spot_price),
             contract_multiplier=contract_multiplier,
         )
+        debug_dir = (output_directory / "debug") if debug_mode else None
         outputs = run_exposure_pipeline(
             pair.side_by_side_path,
             pair.greeks_path,
             run_config,
             output_dir=output_directory,
+            debug_dir=debug_dir,
         )
         moved_files = [
             _move_to_processed(pair.side_by_side_path, processed_directory),
