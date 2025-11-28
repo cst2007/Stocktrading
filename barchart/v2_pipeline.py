@@ -1,12 +1,16 @@
 """Phase 2 Barchart Options Analyzer pipeline."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 import pandas as pd
+
+from derived.OptionSelling_premium_components import build_premium_components
 
 EPSILON = 1e-8
 
@@ -26,6 +30,7 @@ class ExposureOutputs:
     side_path: Path
     reactivity_path: Path
     derived_path: Path
+    premium_path: Path | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -620,6 +625,20 @@ def run_exposure_pipeline(
     scored[reactivity_columns].to_csv(reactivity_path, index=False)
     scored[derived_columns].to_csv(derived_path, index=False)
 
+    premium_path: Path | None = None
+    try:
+        premium_components = build_premium_components(
+            scored[["Strike", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"]]
+        )
+        premium_filename = (
+            f"OptionSelling_premium_{config.ticker}_{config.expiry}_"
+            f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.csv"
+        )
+        premium_path = derived_dir / premium_filename
+        premium_components.to_csv(premium_path, index=False)
+    except Exception as exc:  # pragma: no cover - surfaced via CLI logging
+        logging.exception("Failed to compute option-selling premium components: %s", exc)
+
     if debug_dir:
         debug_path = debug_dir / f"DEBUG_EXPOSURES-{suffix}"
         debug_columns = sorted(
@@ -657,6 +676,7 @@ def run_exposure_pipeline(
         side_path=side_path,
         reactivity_path=reactivity_path,
         derived_path=derived_path,
+        premium_path=premium_path,
     )
 
 
