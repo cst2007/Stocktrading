@@ -1,7 +1,5 @@
 """Phase 2 Barchart Options Analyzer pipeline."""
 from __future__ import annotations
-
-import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,7 +28,7 @@ class ExposureOutputs:
     side_path: Path
     reactivity_path: Path
     derived_path: Path
-    premium_path: Path | None = None
+    premium_path: Path
 
 
 # ---------------------------------------------------------------------------
@@ -625,19 +623,15 @@ def run_exposure_pipeline(
     scored[reactivity_columns].to_csv(reactivity_path, index=False)
     scored[derived_columns].to_csv(derived_path, index=False)
 
-    premium_path: Path | None = None
-    try:
-        premium_components = build_premium_components(
-            scored[["Strike", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"]]
-        )
-        premium_filename = (
-            f"OptionSelling_premium_{config.ticker}_{config.expiry}_"
-            f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.csv"
-        )
-        premium_path = derived_dir / premium_filename
-        premium_components.to_csv(premium_path, index=False)
-    except Exception as exc:  # pragma: no cover - surfaced via CLI logging
-        logging.exception("Failed to compute option-selling premium components: %s", exc)
+    premium_components = build_premium_components(
+        scored[["Strike", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"]]
+    )
+    premium_filename = (
+        f"OptionSelling_premium_{config.ticker}_{config.expiry}_"
+        f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.csv"
+    )
+    premium_path = derived_dir / premium_filename
+    premium_components.to_csv(premium_path, index=False)
 
     if debug_dir:
         debug_path = debug_dir / f"DEBUG_EXPOSURES-{suffix}"
