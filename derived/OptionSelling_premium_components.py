@@ -67,18 +67,12 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     df["GEX_Component"] = 0.30 * df["Net_GEX_norm_abs"]
 
     dgex_series = df["dGEX_dSpot_num"].astype(float)
-    dgex_min = dgex_series.min()
-    dgex_max = dgex_series.max()
-    dgex_range = dgex_max - dgex_min
+    dgex_ranks = dgex_series.rank(method="min")
+    num_ranks = len(dgex_ranks)
+    denominator = max(num_ranks - 1, 0) + EPSILON
 
-    if abs(dgex_range) < EPSILON:
-        df["dGEX_dSpot_norm"] = 0.0
-        df["dGEX_Component"] = 0.0
-    else:
-        df["dGEX_dSpot_norm"] = (dgex_series - dgex_min) / (dgex_range + EPSILON)
-        df["dGEX_Component"] = (
-            0.20 * np.maximum(df["dGEX_dSpot_norm"], 0.0)
-        ).astype(float)
+    df["dGEX_dSpot_norm"] = ((dgex_ranks - 1) / denominator).astype(float)
+    df["dGEX_Component"] = 0.20 * df["dGEX_dSpot_norm"]
 
     df["Call_Theta_norm_abs"] = _normalize_abs(df["Call_Theta"])
     df["Call_OI_norm"] = _normalize(df["Call_OI"])
