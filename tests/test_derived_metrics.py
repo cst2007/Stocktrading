@@ -273,19 +273,23 @@ def test_ivxoi_columns_positioned_and_ranked():
 
     columns = list(metrics.columns)
     dgex_rank_idx = columns.index("dGEX/dSpot Rank")
-    assert columns[dgex_rank_idx + 1 : dgex_rank_idx + 13] == [
+    assert columns[dgex_rank_idx + 1 : dgex_rank_idx + 17] == [
         "Top5_Regime_Energy_Bias",
         "Energy_Score",
         "Regime",
         "Dealer_Bias",
-        "reactivity_score",
-        "behavior_tag",
         "Call_IVxOI",
         "Put_IVxOI",
         "IVxOI",
         "IVxOI Rank",
         "Call_IVxOI_Rank",
         "Put_IVxOI_Rank",
+        "CoveredCall_Score",
+        "CSP_Score",
+        "Is_CC_Candidate",
+        "Is_CSP_Candidate",
+        "reactivity_score",
+        "behavior_tag",
     ]
 
     ivxoi_ranks = metrics.set_index("Strike")["IVxOI Rank"]

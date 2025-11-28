@@ -538,15 +538,38 @@ def run_exposure_pipeline(
         "CSP_Score",
         "Is_CC_Candidate",
         "Is_CSP_Candidate",
+        "reactivity_score",
+        "behavior_tag",
         "Structure_Bonus_CC",
         "Structure_Bonus_CSP",
         "Market_Structure",
         "Distance_to_Spot",
     ]
 
-    derived_columns = reactivity_columns + [
+    derived_columns = [
+        "Ticker",
+        "Expiry",
+        "Spot",
+        "Strike",
+        "Net_GEX",
+        "dGEX_dSpot",
+        "Net_DEX",
+        "Net_Theta_Exp",
+        "Net_Vanna",
+        "ReactivityScore",
+        "ReactivityRank",
+        "Is_High_Reactivity",
+        "Behavior_Tag",
+        "CoveredCall_Score",
+        "CSP_Score",
+        "Is_CC_Candidate",
+        "Is_CSP_Candidate",
         "reactivity_score",
         "behavior_tag",
+        "Structure_Bonus_CC",
+        "Structure_Bonus_CSP",
+        "Market_Structure",
+        "Distance_to_Spot",
     ]
 
     core_columns = [
