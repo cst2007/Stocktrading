@@ -33,7 +33,7 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     The input dataframe must contain the following columns:
         - "Strike"
         - "Net_GEX"
-        - "dGEX_dSpot"
+        - "dGEX_dSpot" (or "dGEX/dSpot")
         - "Call_Theta"
         - "Call_OI"
         - "Put_Theta"
@@ -46,32 +46,35 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     ``CSP_OI_Component``, and ``CSP_score_partial``.
     """
 
-    required_columns = {
-        "Strike",
-        "Net_GEX",
-        "dGEX_dSpot",
-        "Call_Theta",
-        "Call_OI",
-        "Put_Theta",
-        "Put_OI",
-    }
+    required_columns = {"Strike", "Net_GEX", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"}
     missing_columns = required_columns - set(df.columns)
     if missing_columns:
         missing = ", ".join(sorted(missing_columns))
         raise ValueError(f"Input dataframe is missing required columns: {missing}")
 
+    if "dGEX_dSpot" in df.columns:
+        dgex_dspot_col = "dGEX_dSpot"
+    elif "dGEX/dSpot" in df.columns:
+        dgex_dspot_col = "dGEX/dSpot"
+    else:
+        raise ValueError(
+            "Input dataframe is missing required column: dGEX_dSpot (or dGEX/dSpot)"
+        )
+
     df = df.copy()
 
     # Clean and convert dGEX/dSpot values that may arrive as strings with commas
     df["dGEX_dSpot_num"] = (
-        df["dGEX_dSpot"].astype(str).str.replace(",", "", regex=False).astype(float)
+        df[dgex_dspot_col].astype(str).str.replace(",", "", regex=False).astype(float)
     )
 
     df["Net_GEX_norm_abs"] = _normalize_abs(df["Net_GEX"])
     df["GEX_Component"] = 0.30 * df["Net_GEX_norm_abs"]
 
-    df["dGEX_dSpot_norm"] = _normalize_minmax(df["dGEX_dSpot_num"])
-    df["dGEX_Component"] = 0.20 * np.maximum(df["dGEX_dSpot_norm"], 0.0)
+    df["dGEX_dSpot_norm"] = _normalize_minmax(df["dGEX_dSpot_num"].astype(float))
+    df["dGEX_Component"] = (
+        0.20 * np.maximum(df["dGEX_dSpot_norm"], 0.0)
+    ).astype(float)
 
     df["Call_Theta_norm_abs"] = _normalize_abs(df["Call_Theta"])
     df["Call_OI_norm"] = _normalize(df["Call_OI"])
