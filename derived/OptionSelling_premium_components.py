@@ -36,9 +36,9 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
 
     The resulting dataframe includes the strike, weighted components, and
     intermediate partial scores for each strategy:
-    ``GEX_Component``, ``dGEX_Component``, ``CC_Theta_Component``,
-    ``CC_OI_Component``, ``CC_score_partial``, ``CSP_Theta_Component``,
-    ``CSP_OI_Component``, and ``CSP_score_partial``.
+    ``GEX_Component``, ``CC_Theta_Component``, ``CC_OI_Component``,
+    ``CC_score_partial``, ``CC_Rank``, ``CSP_Theta_Component``,
+    ``CSP_OI_Component``, ``CSP_score_partial``, and ``CSP_Rank``.
     """
 
     required_columns = {"Strike", "Net_GEX", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"}
@@ -100,16 +100,32 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
         + df["CSP_OI_Component"]
     )
 
+    cc_ranks = df["CC_score_partial"].rank(method="min", ascending=False)
+    csp_ranks = df["CSP_score_partial"].rank(method="min", ascending=False)
+
+    df["CC_Rank"] = np.where(
+        cc_ranks <= 7,
+        "Rank " + cc_ranks.astype(int).astype(str) + ": " + df["Strike"].astype(str),
+        "",
+    )
+
+    df["CSP_Rank"] = np.where(
+        csp_ranks <= 7,
+        "Rank " + csp_ranks.astype(int).astype(str) + ": " + df["Strike"].astype(str),
+        "",
+    )
+
     return df[[
         "Strike",
         "CC_score_partial",
         "CSP_score_partial",
         "GEX_Component",
-        "dGEX_Component",
         "CC_Theta_Component",
         "CC_OI_Component",
+        "CC_Rank",
         "CSP_Theta_Component",
         "CSP_OI_Component",
+        "CSP_Rank",
     ]]
 
 
