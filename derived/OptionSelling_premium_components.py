@@ -6,6 +6,7 @@ covered calls (CC) and cash-secured puts (CSP).
 """
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 EPSILON: float = 1e-9
@@ -27,6 +28,7 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     The input dataframe must contain the following columns:
         - "Strike"
         - "Net_GEX"
+        - "dGEX_dSpot"
         - "Call_Theta"
         - "Call_OI"
         - "Put_Theta"
@@ -34,14 +36,15 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
 
     The resulting dataframe includes the strike, weighted components, and
     intermediate partial scores for each strategy:
-    ``GEX_Component``, ``CC_Theta_Component``, ``CC_OI_Component``,
-    ``CC_score_partial``, ``CSP_Theta_Component``, ``CSP_OI_Component``, and
-    ``CSP_score_partial``.
+    ``GEX_Component``, ``dGEX_Component``, ``CC_Theta_Component``,
+    ``CC_OI_Component``, ``CC_score_partial``, ``CSP_Theta_Component``,
+    ``CSP_OI_Component``, and ``CSP_score_partial``.
     """
 
     required_columns = {
         "Strike",
         "Net_GEX",
+        "dGEX_dSpot",
         "Call_Theta",
         "Call_OI",
         "Put_Theta",
@@ -57,6 +60,9 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     df["Net_GEX_norm_abs"] = _normalize_abs(df["Net_GEX"])
     df["GEX_Component"] = 0.30 * df["Net_GEX_norm_abs"]
 
+    df["dGEX_dSpot_norm"] = _normalize(df["dGEX_dSpot"])
+    df["dGEX_Component"] = 0.20 * np.maximum(df["dGEX_dSpot_norm"], 0.0)
+
     df["Call_Theta_norm_abs"] = _normalize_abs(df["Call_Theta"])
     df["Call_OI_norm"] = _normalize(df["Call_OI"])
 
@@ -71,12 +77,14 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
 
     df["CC_score_partial"] = (
         df["GEX_Component"]
+        + df["dGEX_Component"]
         + df["CC_Theta_Component"]
         + df["CC_OI_Component"]
     )
 
     df["CSP_score_partial"] = (
         df["GEX_Component"]
+        + df["dGEX_Component"]
         + df["CSP_Theta_Component"]
         + df["CSP_OI_Component"]
     )
@@ -84,6 +92,7 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     return df[[
         "Strike",
         "GEX_Component",
+        "dGEX_Component",
         "CC_Theta_Component",
         "CC_OI_Component",
         "CSP_Theta_Component",
@@ -99,6 +108,7 @@ if __name__ == "__main__":
         {
             "Strike": [3950, 4000, 4050],
             "Net_GEX": [0.9, 1.2, 0.6],
+            "dGEX_dSpot": [0.05, 0.10, -0.02],
             "Call_Theta": [-12.5, -10.0, -8.0],
             "Call_OI": [15000, 18000, 13000],
             "Put_Theta": [-14.0, -11.0, -9.5],
