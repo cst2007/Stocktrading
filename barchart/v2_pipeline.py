@@ -675,6 +675,28 @@ def run_exposure_pipeline(
         available_columns = [col for col in debug_columns if col in scored.columns]
         scored[available_columns].to_csv(debug_path, index=False)
 
+        dgex_series = scored["dGEX_dSpot"].astype(float)
+        dgex_min = dgex_series.min()
+        dgex_max = dgex_series.max()
+        dgex_range = dgex_max - dgex_min
+
+        if abs(dgex_range) < EPSILON:
+            dgex_dspot_norm = pd.Series(0.0, index=scored.index)
+        else:
+            dgex_dspot_norm = (dgex_series - dgex_min) / (dgex_range + EPSILON)
+
+        dgex_positive = np.maximum(dgex_dspot_norm, 0.0)
+        debug_dgex = pd.DataFrame(
+            {
+                "Strike": scored["Strike"],
+                "dGEX_dSpot_norm": dgex_dspot_norm,
+                "dGEX_dSpot_norm_positive": dgex_positive,
+            }
+        )
+
+        dgex_debug_path = debug_dir / f"DEBUG_dGEX_dSpot_norm-{suffix}"
+        debug_dgex.to_csv(dgex_debug_path, index=False)
+
     return ExposureOutputs(
         core_path=core_path,
         side_path=side_path,
