@@ -30,6 +30,8 @@ DERIVED_CSV_HEADER = [
     "Energy_Score",
     "Regime",
     "Dealer_Bias",
+    "reactivity_score",
+    "behavior_tag",
     "CoveredCall_Score",
     "CSP_Score",
     "Is_CC_Candidate",
@@ -77,6 +79,8 @@ DERIVED_CSV_HEADER_TOP5_FIRST = [
     "Energy_Score",
     "Regime",
     "Dealer_Bias",
+    "reactivity_score",
+    "behavior_tag",
     "Call_IVxOI",
     "Put_IVxOI",
     "IVxOI",
@@ -777,6 +781,17 @@ def compute_derived_metrics(
                 filled = filled.convert_dtypes()
             filled = filled.fillna(default_value)
             metrics[column] = filled
+        else:
+            metrics[column] = default_value
+
+    optional_passthrough_columns = {
+        "reactivity_score": pd.NA,
+        "behavior_tag": "",
+    }
+
+    for column, default_value in optional_passthrough_columns.items():
+        if column in unified_df.columns:
+            metrics[column] = unified_df[column].copy()
         else:
             metrics[column] = default_value
 
