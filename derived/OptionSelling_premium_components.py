@@ -37,8 +37,8 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     The resulting dataframe includes the strike, weighted components, and
     intermediate partial scores for each strategy:
     ``GEX_Component``, ``CC_Theta_Component``, ``CC_OI_Component``,
-    ``CC_score_partial``, ``CC_Rank``, ``CSP_Theta_Component``,
-    ``CSP_OI_Component``, ``CSP_score_partial``, and ``CSP_Rank``.
+    ``CC_Rank``, ``CSP_Rank``, ``CC_score_partial``, ``CSP_score_partial``,
+    ``CSP_Theta_Component``, and ``CSP_OI_Component``.
     """
 
     required_columns = {"Strike", "Net_GEX", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"}
@@ -117,15 +117,15 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
 
     return df[[
         "Strike",
+        "CC_Rank",
+        "CSP_Rank",
         "CC_score_partial",
         "CSP_score_partial",
         "GEX_Component",
         "CC_Theta_Component",
         "CC_OI_Component",
-        "CC_Rank",
         "CSP_Theta_Component",
         "CSP_OI_Component",
-        "CSP_Rank",
     ]]
 
 
