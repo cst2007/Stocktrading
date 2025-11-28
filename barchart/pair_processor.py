@@ -436,6 +436,7 @@ def _write_option_selling_components(
     premium_source = combined_df.rename(
         columns={
             "Strike": "Strike",
+            "net_gex": "Net_GEX",
             "call_theta": "Call_Theta",
             "call_open_interest": "Call_OI",
             "puts_theta": "Put_Theta",
@@ -444,7 +445,9 @@ def _write_option_selling_components(
     )
 
     premium_df = build_premium_components(
-        premium_source[["Strike", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"]]
+        premium_source[
+            ["Strike", "Net_GEX", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"]
+        ]
     )
 
     premium_filename = (
