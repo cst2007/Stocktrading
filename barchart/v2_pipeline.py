@@ -544,6 +544,11 @@ def run_exposure_pipeline(
         "Distance_to_Spot",
     ]
 
+    derived_columns = reactivity_columns + [
+        "reactivity_score",
+        "behavior_tag",
+    ]
+
     core_columns = [
         "Ticker",
         "Expiry",
@@ -564,6 +569,9 @@ def run_exposure_pipeline(
     scored.insert(1, "Expiry", config.expiry)
     scored["Spot"] = config.spot
     scored["Distance_to_Spot"] = scored["Strike"] - config.spot
+
+    scored["reactivity_score"] = scored["ReactivityScore"]
+    scored["behavior_tag"] = scored["Behavior_Tag"]
 
     output_dir = output_dir.expanduser().resolve()
     core_dir = output_dir / "core"
@@ -587,7 +595,7 @@ def run_exposure_pipeline(
     scored[core_columns].to_csv(core_path, index=False)
     scored[side_columns].to_csv(side_path, index=False)
     scored[reactivity_columns].to_csv(reactivity_path, index=False)
-    scored[reactivity_columns].to_csv(derived_path, index=False)
+    scored[derived_columns].to_csv(derived_path, index=False)
 
     if debug_dir:
         debug_path = debug_dir / f"DEBUG_EXPOSURES-{suffix}"
