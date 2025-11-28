@@ -211,6 +211,10 @@ def _compute_scores(df: pd.DataFrame, d_gex_d_spot: float) -> pd.DataFrame:
 
     abs_norm = {name: series.abs() for name, series in normed.items()}
 
+    for name, series in normed.items():
+        df[f"{name}_norm"] = series
+        df[f"{name}_norm_abs"] = series.abs()
+
     weights = {
         "Net_GEX": 0.30,
         "dGEX_dSpot": 0.25,
@@ -219,7 +223,10 @@ def _compute_scores(df: pd.DataFrame, d_gex_d_spot: float) -> pd.DataFrame:
         "Net_Vanna": 0.10,
     }
 
-    raw_score = sum(weights[name] * abs_norm[name] for name in weights)
+    for name in weights:
+        df[f"Reactivity_{name}_weighted"] = weights[name] * abs_norm[name]
+
+    raw_score = sum(df[f"Reactivity_{name}_weighted"] for name in weights)
     raw_min = raw_score.min()
     raw_max = raw_score.max()
     df["ReactivityScore_raw"] = raw_score
@@ -458,7 +465,12 @@ def _assign_behavior_tags(df: pd.DataFrame, abs_norm: Dict[str, pd.Series], weig
 # ---------------------------------------------------------------------------
 
 def run_exposure_pipeline(
-    options_path: Path, greeks_path: Path, config: ExposureRunConfig, *, output_dir: Path
+    options_path: Path,
+    greeks_path: Path,
+    config: ExposureRunConfig,
+    *,
+    output_dir: Path,
+    debug_dir: Path | None = None,
 ) -> ExposureOutputs:
     options_df = load_options_file(options_path)
     greeks_df = load_greeks_file(greeks_path)
@@ -558,10 +570,13 @@ def run_exposure_pipeline(
     side_dir = output_dir / "details"
     signals_dir = output_dir / "signals"
     derived_dir = output_dir / "derived"
+    debug_dir = debug_dir.expanduser().resolve() if debug_dir else None
     core_dir.mkdir(parents=True, exist_ok=True)
     side_dir.mkdir(parents=True, exist_ok=True)
     signals_dir.mkdir(parents=True, exist_ok=True)
     derived_dir.mkdir(parents=True, exist_ok=True)
+    if debug_dir:
+        debug_dir.mkdir(parents=True, exist_ok=True)
 
     suffix = f"{config.ticker}-exp-{config.expiry}.csv"
     core_path = core_dir / f"CORE_EXPOSURES-{suffix}"
@@ -573,6 +588,38 @@ def run_exposure_pipeline(
     scored[side_columns].to_csv(side_path, index=False)
     scored[reactivity_columns].to_csv(reactivity_path, index=False)
     scored[reactivity_columns].to_csv(derived_path, index=False)
+
+    if debug_dir:
+        debug_path = debug_dir / f"DEBUG_EXPOSURES-{suffix}"
+        debug_columns = sorted(
+            set(
+                reactivity_columns
+                + [
+                    "Net_GEX_norm",
+                    "Net_GEX_norm_abs",
+                    "dGEX_dSpot_norm",
+                    "dGEX_dSpot_norm_abs",
+                    "Net_DEX_norm",
+                    "Net_DEX_norm_abs",
+                    "Net_Theta_Exp_norm",
+                    "Net_Theta_Exp_norm_abs",
+                    "Net_Vanna_norm",
+                    "Net_Vanna_norm_abs",
+                    "Call_OI_norm",
+                    "Put_OI_norm",
+                    "Call_Theta_norm_abs",
+                    "Put_Theta_norm_abs",
+                    "ReactivityScore_raw",
+                    "Reactivity_Net_GEX_weighted",
+                    "Reactivity_dGEX_dSpot_weighted",
+                    "Reactivity_Net_DEX_weighted",
+                    "Reactivity_Net_Theta_Exp_weighted",
+                    "Reactivity_Net_Vanna_weighted",
+                ]
+            )
+        )
+        available_columns = [col for col in debug_columns if col in scored.columns]
+        scored[available_columns].to_csv(debug_path, index=False)
 
     return ExposureOutputs(
         core_path=core_path,
