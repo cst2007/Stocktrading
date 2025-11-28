@@ -173,6 +173,7 @@ def process_pair(
     create_charts: bool = False,
     enable_insights: bool = False,
     exclude_spx_columns: bool = False,
+    debug_mode: bool = True,
 ) -> Dict[str, object]:
     """Combine and analyze ``pair``, then move the inputs into ``processed_directory``."""
 
@@ -303,6 +304,7 @@ def process_pair(
         create_charts=create_charts,
         spot_price=float(spot_price),
         iv_direction=iv_direction,
+        debug_mode=debug_mode,
     )
 
     results = analyzer.process_path(combined_path, analyzer_output_dir)

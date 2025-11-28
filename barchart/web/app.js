@@ -81,15 +81,15 @@ function renderPairs(pairs) {
     const input = card.querySelector('.spot-input');
     const ivDirectionSelect = card.querySelector('.iv-direction-input');
     const insightsToggle = card.querySelector('.insights-checkbox');
-    const spxToggle = card.querySelector('.spx-checkbox');
+    const debugToggle = card.querySelector('.debug-checkbox');
     const insightsNote = card.querySelector('.insights-note');
 
     if (insightsToggle) {
       insightsToggle.checked = false;
     }
 
-    if (spxToggle) {
-      spxToggle.checked = false;
+    if (debugToggle) {
+      debugToggle.checked = true;
     }
 
     if (insightsNote) {
@@ -109,7 +109,7 @@ function renderPairs(pairs) {
         ivDirectionSelect,
         processButton,
         insightsToggle,
-        spxToggle,
+        debugToggle,
       );
     });
 
@@ -123,7 +123,7 @@ async function handleProcess(
   ivDirectionSelect,
   button,
   insightsToggle,
-  spxToggle,
+  debugToggle,
 ) {
   const value = input.value.trim();
   if (!value) {
@@ -147,7 +147,7 @@ async function handleProcess(
   }
 
   const generateInsights = Boolean(insightsToggle?.checked);
-  const excludeSpxColumns = Boolean(spxToggle?.checked);
+  const debugMode = Boolean(debugToggle?.checked);
 
   button.disabled = true;
   button.textContent = 'Processing…';
@@ -164,7 +164,7 @@ async function handleProcess(
         spot_price: spotPrice,
         iv_direction: ivDirection,
         generate_insights: generateInsights,
-        exclude_spx_columns: excludeSpxColumns,
+        debug_mode: debugMode,
       }),
     });
 
@@ -186,7 +186,7 @@ async function handleProcess(
         processedAt: new Date().toISOString(),
         result,
         generateInsights,
-        excludeSpxColumns,
+        debugMode,
       }),
     );
 
