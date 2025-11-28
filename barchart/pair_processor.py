@@ -196,7 +196,12 @@ def process_pair(
             spot=float(spot_price),
             contract_multiplier=contract_multiplier,
         )
-        debug_dir = (output_directory / "debug") if debug_mode else None
+
+        debug_dir = None
+        if debug_mode:
+            debug_dir = output_directory / "debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            logger.info("Debug mode enabled: writing debug exposures to %s", debug_dir)
         outputs = run_exposure_pipeline(
             pair.side_by_side_path,
             pair.greeks_path,
