@@ -26,23 +26,34 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
 
     The input dataframe must contain the following columns:
         - "Strike"
+        - "Net_GEX"
         - "Call_Theta"
         - "Call_OI"
         - "Put_Theta"
         - "Put_OI"
 
-    The resulting dataframe includes the strike and four weighted components:
-    ``CC_Theta_Component``, ``CC_OI_Component``, ``CSP_Theta_Component``, and
-    ``CSP_OI_Component``.
+    The resulting dataframe includes the strike and weighted components:
+    ``GEX_Component``, ``CC_Theta_Component``, ``CC_OI_Component``,
+    ``CSP_Theta_Component``, and ``CSP_OI_Component``.
     """
 
-    required_columns = {"Strike", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"}
+    required_columns = {
+        "Strike",
+        "Net_GEX",
+        "Call_Theta",
+        "Call_OI",
+        "Put_Theta",
+        "Put_OI",
+    }
     missing_columns = required_columns - set(df.columns)
     if missing_columns:
         missing = ", ".join(sorted(missing_columns))
         raise ValueError(f"Input dataframe is missing required columns: {missing}")
 
     df = df.copy()
+
+    df["Net_GEX_norm_abs"] = _normalize_abs(df["Net_GEX"])
+    df["GEX_Component"] = 0.30 * df["Net_GEX_norm_abs"]
 
     df["Call_Theta_norm_abs"] = _normalize_abs(df["Call_Theta"])
     df["Call_OI_norm"] = _normalize(df["Call_OI"])
@@ -58,6 +69,7 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
 
     return df[[
         "Strike",
+        "GEX_Component",
         "CC_Theta_Component",
         "CC_OI_Component",
         "CSP_Theta_Component",
@@ -70,6 +82,7 @@ if __name__ == "__main__":
     sample = pd.DataFrame(
         {
             "Strike": [3950, 4000, 4050],
+            "Net_GEX": [0.9, 1.2, 0.6],
             "Call_Theta": [-12.5, -10.0, -8.0],
             "Call_OI": [15000, 18000, 13000],
             "Put_Theta": [-14.0, -11.0, -9.5],
