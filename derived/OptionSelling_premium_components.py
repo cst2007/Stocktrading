@@ -28,17 +28,14 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     The input dataframe must contain the following columns:
         - "Strike"
         - "Net_GEX"
-        - "dGEX_dSpot" (or "dGEX/dSpot")
         - "Call_Theta"
         - "Call_OI"
         - "Put_Theta"
         - "Put_OI"
 
     The resulting dataframe includes the strike, weighted components, and
-    intermediate partial scores for each strategy:
-    ``GEX_Component``, ``CC_Theta_Component``, ``CC_OI_Component``,
-    ``CC_Rank``, ``CSP_Rank``, ``CC_score_partial``, ``CSP_score_partial``,
-    ``CSP_Theta_Component``, and ``CSP_OI_Component``.
+    intermediate partial scores for each strategy. ``dGEX_Component`` uses a
+    proxy slope of Net GEX across adjacent strikes to reward increasing values.
     """
 
     required_columns = {"Strike", "Net_GEX", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"}
@@ -47,32 +44,26 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
         missing = ", ".join(sorted(missing_columns))
         raise ValueError(f"Input dataframe is missing required columns: {missing}")
 
-    if "dGEX_dSpot" in df.columns:
-        dgex_dspot_col = "dGEX_dSpot"
-    elif "dGEX/dSpot" in df.columns:
-        dgex_dspot_col = "dGEX/dSpot"
-    else:
-        raise ValueError(
-            "Input dataframe is missing required column: dGEX_dSpot (or dGEX/dSpot)"
-        )
-
     df = df.copy()
 
-    # Clean and convert dGEX/dSpot values that may arrive as strings with commas
-    df["dGEX_dSpot_num"] = (
-        df[dgex_dspot_col].astype(str).str.replace(",", "", regex=False).astype(float)
-    )
+    # Ensure strikes are processed in ascending order
+    df = df.sort_values("Strike").reset_index(drop=True)
 
     df["Net_GEX_norm_abs"] = _normalize_abs(df["Net_GEX"])
     df["GEX_Component"] = 0.30 * df["Net_GEX_norm_abs"]
 
-    dgex_series = df["dGEX_dSpot_num"].astype(float)
-    dgex_ranks = dgex_series.rank(method="min")
-    num_ranks = len(dgex_ranks)
-    denominator = max(num_ranks - 1, 0) + EPSILON
+    # Proxy for dGEX: reward positive slopes in Net_GEX across strikes
+    df["Net_GEX_shift_up"] = df["Net_GEX"].shift(-1)
+    df["Net_GEX_shift_down"] = df["Net_GEX"].shift(1)
 
-    df["dGEX_dSpot_norm"] = ((dgex_ranks - 1) / denominator).astype(float)
-    df["dGEX_Component"] = 0.20 * df["dGEX_dSpot_norm"]
+    df["GEX_local_slope"] = df["Net_GEX_shift_up"] - df["Net_GEX_shift_down"]
+
+    slope = df["GEX_local_slope"].fillna(0)
+    df["GEX_slope_norm"] = (slope - slope.mean()) / (slope.std() + EPSILON)
+
+    df["dGEX_Component"] = 0.20 * np.maximum(df["GEX_slope_norm"], 0)
+
+    df.drop(["Net_GEX_shift_up", "Net_GEX_shift_down"], axis=1, inplace=True)
 
     df["Call_Theta_norm_abs"] = _normalize_abs(df["Call_Theta"])
     df["Call_OI_norm"] = _normalize(df["Call_OI"])
@@ -122,6 +113,7 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
         "CC_score_partial",
         "CSP_score_partial",
         "GEX_Component",
+        "dGEX_Component",
         "CC_Theta_Component",
         "CC_OI_Component",
         "CSP_Theta_Component",
