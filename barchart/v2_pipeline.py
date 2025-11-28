@@ -624,7 +624,17 @@ def run_exposure_pipeline(
     scored[derived_columns].to_csv(derived_path, index=False)
 
     premium_components = build_premium_components(
-        scored[["Strike", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"]]
+        scored[
+            [
+                "Strike",
+                "Net_GEX",
+                "dGEX_dSpot",
+                "Call_Theta",
+                "Call_OI",
+                "Put_Theta",
+                "Put_OI",
+            ]
+        ]
     )
     premium_filename = (
         f"OptionSelling_premium_{config.ticker}_{config.expiry}_"
