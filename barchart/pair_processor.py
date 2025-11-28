@@ -446,6 +446,17 @@ def _write_option_selling_components(
         }
     )
 
+    for column in [
+        "Net_GEX",
+        "dGEX_dSpot",
+        "Call_Theta",
+        "Call_OI",
+        "Put_Theta",
+        "Put_OI",
+    ]:
+        if column not in premium_source:
+            premium_source[column] = 0.0
+
     premium_df = build_premium_components(
         premium_source[
             [
