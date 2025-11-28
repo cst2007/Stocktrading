@@ -538,6 +538,8 @@ def run_exposure_pipeline(
         "CSP_Score",
         "Is_CC_Candidate",
         "Is_CSP_Candidate",
+        "reactivity_score",
+        "behavior_tag",
         "Structure_Bonus_CC",
         "Structure_Bonus_CSP",
         "Market_Structure",
