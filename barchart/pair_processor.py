@@ -17,6 +17,7 @@ from .analyzer import BarchartOptionsAnalyzer, ProcessingResult
 from .ai_insights import AIInsightsConfigurationError, generate_ai_insight
 from .combiner import COMBINED_CSV_HEADER, combine_option_files
 from .derived_metrics import compute_derived_metrics
+from derived.OptionSelling_premium_components import build_premium_components
 
 logger = logging.getLogger(__name__)
 
@@ -212,6 +213,7 @@ def process_pair(
             "side_csv": str(outputs.side_path),
             "reactivity_csv": str(outputs.reactivity_path),
             "derived_csv": str(outputs.derived_path),
+            "option_selling_csv": str(outputs.premium_path) if outputs.premium_path else None,
             "moved_files": [str(path) for path in moved_files],
             "iv_direction": iv_direction,
         }
@@ -281,6 +283,18 @@ def process_pair(
     formatted_derived_df = _format_derived_numeric_values(derived_df)
     formatted_derived_df.to_csv(derived_path, index=False)
 
+    premium_path: Path | None = None
+    try:
+        premium_path = _write_option_selling_components(
+            combined_df,
+            derived_dir,
+            ticker=safe_ticker,
+            expiry=safe_expiry,
+            calculation_time=calculation_time,
+        )
+    except Exception:  # pragma: no cover - surfaced via CLI logging
+        logger.exception("Failed to compute option-selling premium components")
+
     insights_dir = derived_dir / "insights"
     insights_info: Dict[str, object] | None = None
     try:
@@ -344,6 +358,7 @@ def process_pair(
         "combined_csv": str(combined_path),
         "moved_files": [str(path) for path in moved_files],
         "derived_csv": str(derived_path),
+        "option_selling_csv": str(premium_path) if premium_path else None,
         "market_structure_txt": str(market_structure_path) if market_structure_path else None,
         "summaries": summaries,
         "insights": insights_info,
@@ -412,6 +427,37 @@ def _format_derived_numeric_values(df: pd.DataFrame) -> pd.DataFrame:
         formatted[column] = formatted[column].apply(_format_value)
 
     return formatted
+
+
+def _write_option_selling_components(
+    combined_df: pd.DataFrame,
+    output_dir: Path,
+    *,
+    ticker: str,
+    expiry: str,
+    calculation_time: datetime,
+) -> Path:
+    premium_source = combined_df.rename(
+        columns={
+            "Strike": "Strike",
+            "call_theta": "Call_Theta",
+            "call_open_interest": "Call_OI",
+            "puts_theta": "Put_Theta",
+            "puts_open_interest": "Put_OI",
+        }
+    )
+
+    premium_df = build_premium_components(
+        premium_source[["Strike", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"]]
+    )
+
+    premium_filename = (
+        f"OptionSelling_premium_{ticker}_{expiry}_"
+        f"{calculation_time.strftime('%Y%m%dT%H%M%SZ')}.csv"
+    )
+    premium_path = output_dir / premium_filename
+    premium_df.to_csv(premium_path, index=False)
+    return premium_path
 
 
 def _write_market_structure_file(
