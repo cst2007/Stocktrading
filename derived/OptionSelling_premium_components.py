@@ -28,6 +28,7 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     The input dataframe must contain the following columns:
         - "Strike"
         - "Net_GEX"
+        - "Net_DEX"
         - "Call_Theta"
         - "Call_OI"
         - "Put_Theta"
@@ -38,7 +39,15 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
     proxy slope of Net GEX across adjacent strikes to reward increasing values.
     """
 
-    required_columns = {"Strike", "Net_GEX", "Call_Theta", "Call_OI", "Put_Theta", "Put_OI"}
+    required_columns = {
+        "Strike",
+        "Net_GEX",
+        "Net_DEX",
+        "Call_Theta",
+        "Call_OI",
+        "Put_Theta",
+        "Put_OI",
+    }
     missing_columns = required_columns - set(df.columns)
     if missing_columns:
         missing = ", ".join(sorted(missing_columns))
@@ -51,6 +60,27 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
 
     df["Net_GEX_norm_abs"] = _normalize_abs(df["Net_GEX"])
     df["GEX_Component"] = 0.30 * df["Net_GEX_norm_abs"]
+
+    gex_series = pd.to_numeric(df["Net_GEX"], errors="coerce").fillna(0.0)
+    dex_series = pd.to_numeric(df["Net_DEX"], errors="coerce").fillna(0.0)
+
+    gex_threshold = gex_series.abs().quantile(0.80)
+    dex_threshold = dex_series.abs().quantile(0.80)
+    magnet_mask = (gex_series.abs() > gex_threshold) | (dex_series.abs() > dex_threshold)
+
+    gex_wall_threshold = gex_series.abs().quantile(0.85)
+    dex_wall_threshold = dex_series.abs().quantile(0.85)
+    wall_mask = (gex_series.diff().abs() > gex_wall_threshold) | (
+        dex_series.diff().abs() > dex_wall_threshold
+    )
+
+    void_mask = (gex_series.abs() < gex_series.abs().quantile(0.30)) & (
+        dex_series.abs() < dex_series.abs().quantile(0.30)
+    )
+
+    df["MWV"] = np.select(
+        [magnet_mask, wall_mask, void_mask], ["Magnet", "Wall", "Void"], default=""
+    )
 
     # Proxy for dGEX: reward positive slopes in Net_GEX across strikes
     df["Net_GEX_shift_up"] = df["Net_GEX"].shift(-1)
@@ -108,6 +138,7 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
 
     return df[[
         "Strike",
+        "MWV",
         "CC_Rank",
         "CSP_Rank",
         "CC_score_partial",
@@ -127,6 +158,7 @@ if __name__ == "__main__":
         {
             "Strike": [3950, 4000, 4050],
             "Net_GEX": [0.9, 1.2, 0.6],
+            "Net_DEX": [1.1, -0.4, 0.2],
             "dGEX_dSpot": [0.05, 0.10, -0.02],
             "Call_Theta": [-12.5, -10.0, -8.0],
             "Call_OI": [15000, 18000, 13000],
