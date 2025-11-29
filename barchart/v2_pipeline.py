@@ -623,11 +623,15 @@ def run_exposure_pipeline(
     scored[reactivity_columns].to_csv(reactivity_path, index=False)
     scored[derived_columns].to_csv(derived_path, index=False)
 
+    if "Net_DEX" not in scored:
+        scored["Net_DEX"] = 0.0
+
     premium_components = build_premium_components(
         scored[
             [
                 "Strike",
                 "Net_GEX",
+                "Net_DEX",
                 "dGEX_dSpot",
                 "Call_Theta",
                 "Call_OI",

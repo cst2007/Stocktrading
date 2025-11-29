@@ -444,6 +444,7 @@ def _write_option_selling_components(
         columns={
             "Strike": "Strike",
             "net_gex": "Net_GEX",
+            "net_dex": "Net_DEX",
             "dGEX/dSpot": "dGEX_dSpot",
             "dgex_dspot": "dGEX_dSpot",
             "call_theta": "Call_Theta",
@@ -453,8 +454,34 @@ def _write_option_selling_components(
         }
     )
 
+    if "Net_DEX" not in premium_source:
+        required_dex_columns = {
+            "call_delta",
+            "call_open_interest",
+            "puts_delta",
+            "puts_open_interest",
+            "Spot",
+        }
+        if required_dex_columns.issubset(premium_source.columns):
+            call_dex = (
+                premium_source["call_delta"]
+                * premium_source["Spot"]
+                * premium_source["call_open_interest"]
+                * 100.0
+            )
+            put_dex = (
+                premium_source["puts_delta"]
+                * premium_source["Spot"]
+                * premium_source["puts_open_interest"]
+                * 100.0
+            )
+            premium_source["Net_DEX"] = call_dex - put_dex
+        else:
+            premium_source["Net_DEX"] = 0.0
+
     for column in [
         "Net_GEX",
+        "Net_DEX",
         "dGEX_dSpot",
         "Call_Theta",
         "Call_OI",
@@ -469,6 +496,7 @@ def _write_option_selling_components(
             [
                 "Strike",
                 "Net_GEX",
+                "Net_DEX",
                 "dGEX_dSpot",
                 "Call_Theta",
                 "Call_OI",
