@@ -713,6 +713,7 @@ def _write_market_structure_file(
         ticker_symbol=ticker,
     )
     if gamma_box_high is not None:
+        execution_lines.append("")
         execution_lines.append(f"- Gamma_Box_High: {_format_strike(gamma_box_high)}")
         if breakout_up is not None:
             execution_lines.append(f"  Breakout_Up: {breakout_up}")
@@ -735,6 +736,7 @@ def _write_market_structure_file(
         if tex_high_line:
             execution_lines.append(tex_high_line)
     if gamma_box_low is not None:
+        execution_lines.append("")
         execution_lines.append(f"- Gamma_Box_Low: {_format_strike(gamma_box_low)}")
         if breakout_down is not None:
             execution_lines.append(f"  Breakout_Down: {breakout_down}")
@@ -758,6 +760,7 @@ def _write_market_structure_file(
             execution_lines.append(tex_low_line)
 
     if magnets:
+        execution_lines.append("")
         magnet_levels, direction_sign, threshold = magnets
         primary = magnet_levels[0]
         secondary = magnet_levels[1] if len(magnet_levels) > 1 else None
