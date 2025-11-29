@@ -66,17 +66,19 @@ def build_premium_components(df: pd.DataFrame) -> pd.DataFrame:
 
     gex_threshold = gex_series.abs().quantile(0.80)
     dex_threshold = dex_series.abs().quantile(0.80)
-    magnet_mask = (gex_series.abs() > gex_threshold) | (dex_series.abs() > dex_threshold)
+    magnet_mask = ((gex_series.abs() > gex_threshold) | (dex_series.abs() > dex_threshold)).fillna(False)
 
     gex_wall_threshold = gex_series.abs().quantile(0.85)
     dex_wall_threshold = dex_series.abs().quantile(0.85)
-    wall_mask = (gex_series.diff().abs() > gex_wall_threshold) | (
-        dex_series.diff().abs() > dex_wall_threshold
-    )
+    wall_mask = (
+        (gex_series.diff().abs() > gex_wall_threshold)
+        | (dex_series.diff().abs() > dex_wall_threshold)
+    ).fillna(False)
 
-    void_mask = (gex_series.abs() < gex_series.abs().quantile(0.30)) & (
-        dex_series.abs() < dex_series.abs().quantile(0.30)
-    )
+    void_mask = (
+        (gex_series.abs() < gex_series.abs().quantile(0.30))
+        & (dex_series.abs() < dex_series.abs().quantile(0.30))
+    ).fillna(False)
 
     df["MWV"] = np.select(
         [magnet_mask, wall_mask, void_mask], ["Magnet", "Wall", "Void"], default=""
